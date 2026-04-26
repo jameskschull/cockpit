@@ -7,6 +7,7 @@ interface Props {
   task: Task;
   view: ViewName;
   selected: boolean;
+  canDrag: boolean;
   dragHandleProps?: {
     attributes?: DraggableAttributes;
     listeners?: DraggableSyntheticListeners;
@@ -19,29 +20,38 @@ interface Props {
   onComplete: () => void;
   onUncomplete: () => void;
   onDelete: () => void;
-  onScheduleToday: () => void;
+  onOpenPicker: (kind: "schedule" | "deadline", anchor: HTMLElement) => void;
   onEdit: () => void;
 }
 
 export function TaskRow({
   task,
-  view,
   selected,
+  canDrag,
   dragHandleProps,
   onSelect,
   onComplete,
   onUncomplete,
   onDelete,
-  onScheduleToday,
+  onOpenPicker,
   onEdit,
 }: Props) {
   const overdue = isOverdue(task.deadline) && !task.completed_at;
   const scheduledToday = task.scheduled_date === todayIso();
-  const canDrag = view === "intake" || view === "today";
+  const hasSchedule = !!task.scheduled_date;
+  const hasDeadline = !!task.deadline;
+
+  const scheduleLabel = hasSchedule
+    ? scheduledToday
+      ? "Scheduled Today →"
+      : `Scheduled ${formatDate(task.scheduled_date)} →`
+    : "Schedule";
+  const deadlineLabel = hasDeadline ? `Due ${formatDate(task.deadline)} →` : "Deadline";
 
   return (
     <div
       ref={(el) => dragHandleProps?.setNodeRef?.(el)}
+      data-task-id={task.id}
       className={classNames(
         "task-row",
         selected && "task-row--selected",
@@ -66,10 +76,7 @@ export function TaskRow({
           ⋮⋮
         </button>
       )}
-      <label
-        className="task-checkbox"
-        onClick={(e) => e.stopPropagation()}
-      >
+      <label className="task-checkbox" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
           checked={!!task.completed_at}
@@ -79,48 +86,35 @@ export function TaskRow({
       </label>
       <div className="task-main">
         <div className="task-title">{task.title}</div>
-        <div className="task-meta">
-          {task.deadline && (
-            <span
-              className={classNames(
-                "task-chip",
-                "task-chip--deadline",
-                overdue && "task-chip--overdue"
-              )}
-              title={overdue ? "Overdue" : "Deadline"}
-            >
-              Due {formatDate(task.deadline)}
-            </span>
-          )}
-          {task.scheduled_date && (
-            <span
-              className={classNames(
-                "task-chip",
-                "task-chip--scheduled",
-                scheduledToday && "task-chip--today"
-              )}
-              title="Scheduled date"
-            >
-              {scheduledToday ? "Today" : `Scheduled ${formatDate(task.scheduled_date)}`}
-            </span>
-          )}
-          {task.notes && <span className="task-notes-indicator" title={task.notes}>note</span>}
-        </div>
+        {task.notes && (
+          <div className="task-meta">
+            <span className="task-notes-indicator" title={task.notes}>note</span>
+          </div>
+        )}
       </div>
       <div className="task-actions" onClick={(e) => e.stopPropagation()}>
-        {!task.completed_at && !scheduledToday && view !== "deadlines" && (
-          <button
-            type="button"
-            className="task-action"
-            onClick={onScheduleToday}
-            title="Schedule for today (T)"
-          >
-            Today
-          </button>
+        {!task.completed_at && (
+          <>
+            <DateAction
+              label={scheduleLabel}
+              value={task.scheduled_date}
+              kind="schedule"
+              hint="Schedule (S)"
+              onOpen={onOpenPicker}
+            />
+            <DateAction
+              label={deadlineLabel}
+              value={task.deadline}
+              kind="deadline"
+              hint="Deadline (D)"
+              overdue={overdue}
+              onOpen={onOpenPicker}
+            />
+          </>
         )}
         <button
           type="button"
-          className="task-action"
+          className="task-action task-action-edit"
           onClick={onEdit}
           title="Edit (Enter)"
         >
@@ -136,5 +130,36 @@ export function TaskRow({
         </button>
       </div>
     </div>
+  );
+}
+
+interface DateActionProps {
+  label: string;
+  value: string | null;
+  kind: "schedule" | "deadline";
+  hint: string;
+  overdue?: boolean;
+  onOpen: (kind: "schedule" | "deadline", anchor: HTMLElement) => void;
+}
+
+function DateAction({ label, value, kind, hint, overdue, onOpen }: DateActionProps) {
+  const set = !!value;
+  return (
+    <button
+      type="button"
+      className={classNames(
+        "task-action",
+        "task-action--date",
+        `task-action--${kind}`,
+        set && "task-action--set",
+        overdue && set && "task-action--overdue"
+      )}
+      data-state={set ? "set" : "unset"}
+      data-kind={kind}
+      title={hint}
+      onClick={(e) => onOpen(kind, e.currentTarget)}
+    >
+      {label}
+    </button>
   );
 }

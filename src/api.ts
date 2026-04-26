@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Task, NewTaskInput, UpdateTaskInput } from "./types";
+import type { AppSettings, NewTaskInput, Priority, Task, UpdateTaskInput } from "./types";
 
 export const api = {
   listIncomplete: () => invoke<Task[]>("list_incomplete"),
@@ -13,6 +13,11 @@ export const api = {
   scheduleForToday: (id: string) => invoke<Task>("schedule_for_today", { id }),
   reorderTask: (id: string, beforeId: string | null, afterId: string | null) =>
     invoke<Task[]>("reorder_task", { id, beforeId, afterId }),
-  getSettings: () => invoke<{ last_view: string }>("get_settings"),
+  getSettings: () => invoke<AppSettings>("get_settings"),
   setLastView: (view: string) => invoke<void>("set_last_view", { view }),
+  setShowPrioritiesBanner: (value: boolean) =>
+    invoke<void>("set_show_priorities_banner", { value }),
+  listPriorities: () => invoke<Priority[]>("list_priorities"),
+  upsertPriority: (weekStart: string, text: string) =>
+    invoke<Priority | null>("upsert_priority", { weekStart, text }),
 };

@@ -89,13 +89,18 @@ kbd {
 }
 
 .app {
-  display: grid;
-  grid-template-columns: 220px 1fr;
+  display: flex;
   height: 100vh;
+}
+
+.app--sidebar-hidden .sidebar {
+  display: none;
 }
 
 /* Sidebar */
 .sidebar {
+  width: 220px;
+  flex-shrink: 0;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
   display: flex;
@@ -190,6 +195,8 @@ kbd {
 
 /* Main */
 .main {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -410,12 +417,16 @@ kbd {
 .task-actions {
   display: flex;
   gap: 4px;
+  align-items: center;
+}
+
+.task-action {
   opacity: 0;
   transition: opacity 0.08s;
 }
 
-.task-row:hover .task-actions,
-.task-row--selected .task-actions {
+.task-row:hover .task-action,
+.task-row--selected .task-action {
   opacity: 1;
 }
 
@@ -426,6 +437,7 @@ kbd {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   background: var(--bg-elev);
+  white-space: nowrap;
 }
 
 .task-action:hover {
@@ -440,6 +452,192 @@ kbd {
 .task-action--danger:hover {
   color: var(--danger);
   border-color: var(--danger);
+}
+
+/* Date buttons: hidden until hover/select when unset; always visible when set.
+   Fixed min-widths reserve a slot per row so the columns align vertically across
+   all task rows, regardless of which dates are set. */
+.task-action--date {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.task-action--schedule {
+  min-width: 146px;
+}
+
+.task-action--deadline {
+  min-width: 108px;
+}
+
+.task-action-edit {
+  min-width: 48px;
+}
+
+.task-action--danger {
+  min-width: 28px;
+}
+
+.task-action[data-state="set"] {
+  border-color: transparent;
+  opacity: 1;
+}
+
+.task-action--schedule[data-state="set"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.task-action--schedule[data-state="set"]:hover {
+  border-color: var(--accent);
+}
+
+.task-action--deadline[data-state="set"] {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.task-action--deadline[data-state="set"]:hover {
+  border-color: var(--warn);
+}
+
+.task-action--overdue[data-state="set"] {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.task-action--overdue[data-state="set"]:hover {
+  border-color: var(--danger);
+}
+
+/* Custom date popover */
+.datepicker {
+  background: var(--bg-elev);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-md);
+  padding: 10px;
+  z-index: 1000;
+  user-select: none;
+}
+
+.datepicker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.datepicker-month {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.datepicker-nav {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-sm);
+  font-size: 16px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+.datepicker-nav:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.datepicker-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  margin-bottom: 4px;
+}
+
+.datepicker-weekdays span {
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  padding: 4px 0;
+}
+
+.datepicker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.datepicker-day {
+  aspect-ratio: 1;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.datepicker-day:hover {
+  background: var(--bg);
+}
+
+.datepicker-day--blank {
+  visibility: hidden;
+}
+
+.datepicker-day--today {
+  border-color: var(--border-strong);
+  font-weight: 600;
+}
+
+.datepicker-day--selected {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.datepicker-day--selected:hover {
+  background: var(--accent);
+}
+
+.datepicker-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.datepicker-today-btn,
+.datepicker-cancel-btn {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+}
+
+.datepicker-today-btn:hover,
+.datepicker-cancel-btn:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.datepicker-today-btn {
+  color: var(--accent);
+}
+
+/* Sidebar drop target highlight while dragging. */
+.sidebar-item--drop-over {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+  outline: 1px dashed var(--accent);
+  outline-offset: -3px;
 }
 
 .empty {
@@ -625,13 +823,298 @@ kbd {
   cursor: not-allowed;
 }
 
+/* Priorities tab */
+.priorities {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 4px 0 24px;
+}
+
+.priority-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.priority-card--highlight {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-sm);
+}
+
+.priority-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  gap: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.priority-card-header--clickable {
+  cursor: pointer;
+  border-bottom: none;
+}
+
+.priority-card-header--clickable:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+@media (prefers-color-scheme: dark) {
+  .priority-card-header--clickable:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+}
+
+.priority-card-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+}
+
+.priority-card-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.priority-card-range {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.priority-card-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.priority-card-saved {
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.priority-card-chevron {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+.priority-editor-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.priority-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.priority-toolbar-btn {
+  width: 28px;
+  height: 24px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  color: var(--text-dim);
+  border: 1px solid transparent;
+  background: transparent;
+}
+
+.priority-toolbar-btn:hover {
+  background: var(--bg-elev);
+  border-color: var(--border);
+  color: var(--text);
+}
+
+.priority-card-editor {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: pre-wrap;
+}
+
+.priority-card-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.priority-card-editor b,
+.priority-card-editor strong {
+  font-weight: 600;
+}
+
+.priority-card-editor u {
+  text-decoration: underline;
+}
+
+.priority-card-editor s,
+.priority-card-editor strike,
+.priority-card-editor del {
+  text-decoration: line-through;
+}
+
+.priorities-section {
+  margin: 12px 4px 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.priorities-past {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.priorities-past .priority-card {
+  border-color: var(--border);
+}
+
+.priorities-settings {
+  margin-top: auto;
+  padding: 12px 4px 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.priority-setting-row,
+.priorities-setting-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.priorities-setting-row input {
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+}
+
+/* Priorities banner */
+.priorities-banner {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elev);
+  margin-bottom: 4px;
+}
+
+.priorities-banner--expanded {
+  border-color: var(--border-strong);
+}
+
+.priorities-banner-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  text-align: left;
+  font-size: 12px;
+  color: var(--text-dim);
+  border-radius: var(--radius-sm);
+}
+
+.priorities-banner-toggle:hover {
+  background: rgba(0, 0, 0, 0.02);
+}
+
+@media (prefers-color-scheme: dark) {
+  .priorities-banner-toggle:hover {
+    background: rgba(255, 255, 255, 0.02);
+  }
+}
+
+.priorities-banner-label {
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.priorities-banner-preview {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.priorities-banner-chevron {
+  color: var(--text-muted);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+}
+
+.priorities-banner-body {
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.priorities-banner-text {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.priorities-banner-text b,
+.priorities-banner-text strong {
+  font-weight: 600;
+}
+
+.priorities-banner-text u {
+  text-decoration: underline;
+}
+
+.priorities-banner-text s,
+.priorities-banner-text strike,
+.priorities-banner-text del {
+  text-decoration: line-through;
+}
+
+.priorities-banner-edit {
+  font-size: 11px;
+  color: var(--accent);
+  padding: 0;
+}
+
+.priorities-banner-edit:hover {
+  text-decoration: underline;
+}
+
 /* Scrollbars */
 .task-list::-webkit-scrollbar,
+.priorities::-webkit-scrollbar,
 .editor-body::-webkit-scrollbar {
   width: 10px;
 }
 
 .task-list::-webkit-scrollbar-thumb,
+.priorities::-webkit-scrollbar-thumb,
 .editor-body::-webkit-scrollbar-thumb {
   background: var(--border-strong);
   border-radius: 5px;

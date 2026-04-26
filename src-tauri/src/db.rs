@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use chrono::{DateTime, NaiveDate, Utc};
+use chrono::{DateTime, Datelike, NaiveDate, Utc, Weekday};
 use rusqlite::{params, Connection, OptionalExtension, Row};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -106,6 +106,12 @@ pub fn open(path: &Path) -> DbResult<Connection> {
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS priorities (
+            week_start TEXT PRIMARY KEY,
+            text TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
         );
         ",
     )?;
@@ -515,4 +521,70 @@ pub fn set_setting(conn: &Connection, key: &str, value: &str) -> DbResult<()> {
         params![key, value],
     )?;
     Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Priority {
+    pub week_start: String,
+    pub text: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+fn validate_monday(week_start: &str) -> DbResult<NaiveDate> {
+    let date = NaiveDate::parse_from_str(week_start, "%Y-%m-%d")
+        .map_err(|_| DbError::Invalid("week_start must be YYYY-MM-DD".into()))?;
+    if date.weekday() != Weekday::Mon {
+        return Err(DbError::Invalid("week_start must fall on a Monday".into()));
+    }
+    Ok(date)
+}
+
+pub fn list_priorities(conn: &Connection) -> DbResult<Vec<Priority>> {
+    let mut stmt = conn.prepare(
+        "SELECT week_start, text, created_at, updated_at
+         FROM priorities ORDER BY week_start DESC",
+    )?;
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(Priority {
+                week_start: r.get(0)?,
+                text: r.get(1)?,
+                created_at: r.get(2)?,
+                updated_at: r.get(3)?,
+            })
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    Ok(rows)
+}
+
+/// Insert/update a week's priorities. Empty (whitespace-only) text deletes the row.
+pub fn upsert_priority(conn: &Connection, week_start: &str, text: &str) -> DbResult<Option<Priority>> {
+    validate_monday(week_start)?;
+    let now_iso = Utc::now().to_rfc3339();
+
+    if text.trim().is_empty() {
+        conn.execute("DELETE FROM priorities WHERE week_start = ?1", params![week_start])?;
+        return Ok(None);
+    }
+
+    conn.execute(
+        "INSERT INTO priorities (week_start, text, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?3)
+         ON CONFLICT(week_start) DO UPDATE SET text = excluded.text, updated_at = excluded.updated_at",
+        params![week_start, text, now_iso],
+    )?;
+    let p = conn.query_row(
+        "SELECT week_start, text, created_at, updated_at FROM priorities WHERE week_start = ?1",
+        params![week_start],
+        |r| {
+            Ok(Priority {
+                week_start: r.get(0)?,
+                text: r.get(1)?,
+                created_at: r.get(2)?,
+                updated_at: r.get(3)?,
+            })
+        },
+    )?;
+    Ok(Some(p))
 }

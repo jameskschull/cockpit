@@ -1,47 +1,72 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Task, ViewName } from "./types";
+import {
+  DndContext,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { arrayMove } from "@dnd-kit/sortable";
+import type { Priority, Task, ViewName } from "./types";
 import { api } from "./api";
-import { todayIso } from "./util";
-import { Sidebar } from "./components/Sidebar";
+import { currentWorkWeekMonday, todayIso } from "./util";
+import { Sidebar, TODAY_DROPPABLE_ID } from "./components/Sidebar";
 import { TaskList } from "./components/TaskList";
 import { TaskEditor } from "./components/TaskEditor";
 import { NewTaskBar } from "./components/NewTaskBar";
+import { Priorities } from "./components/Priorities";
+import { PrioritiesBanner } from "./components/PrioritiesBanner";
+import { Calendar } from "./components/Calendar";
+
+interface PickerState {
+  taskId: string;
+  kind: "schedule" | "deadline";
+  anchor: DOMRect;
+}
+
+const KNOWN_VIEWS: ViewName[] = ["priorities", "intake", "today", "deadlines", "completed"];
 
 export default function App() {
   const [view, setView] = useState<ViewName>("intake");
   const [incomplete, setIncomplete] = useState<Task[]>([]);
   const [completed, setCompleted] = useState<Task[]>([]);
+  const [priorities, setPriorities] = useState<Priority[]>([]);
+  const [showBanner, setShowBanner] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [picker, setPicker] = useState<PickerState | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
 
   const refreshIncomplete = useCallback(async () => {
-    const tasks = await api.listIncomplete();
-    setIncomplete(tasks);
+    setIncomplete(await api.listIncomplete());
   }, []);
 
   const refreshCompleted = useCallback(async () => {
-    const tasks = await api.listCompleted();
-    setCompleted(tasks);
+    setCompleted(await api.listCompleted());
+  }, []);
+
+  const refreshPriorities = useCallback(async () => {
+    setPriorities(await api.listPriorities());
   }, []);
 
   useEffect(() => {
     (async () => {
       try {
         const settings = await api.getSettings();
-        const v = settings.last_view as ViewName;
-        if (v === "intake" || v === "today" || v === "deadlines" || v === "completed") {
-          setView(v);
+        if (KNOWN_VIEWS.includes(settings.last_view as ViewName)) {
+          setView(settings.last_view as ViewName);
         }
+        setShowBanner(settings.show_priorities_banner);
       } catch {
         // ignore
       }
-      await refreshIncomplete();
-      await refreshCompleted();
+      await Promise.all([refreshIncomplete(), refreshCompleted(), refreshPriorities()]);
       setLoaded(true);
     })();
-  }, [refreshIncomplete, refreshCompleted]);
+  }, [refreshIncomplete, refreshCompleted, refreshPriorities]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -57,11 +82,13 @@ export default function App() {
       return incomplete
         .filter((t) => t.deadline !== null)
         .slice()
-        .sort((a, b) => (a.deadline! < b.deadline! ? -1 : a.deadline! > b.deadline! ? 1 : a.priority_rank - b.priority_rank));
-    return completed;
+        .sort((a, b) =>
+          a.deadline! < b.deadline! ? -1 : a.deadline! > b.deadline! ? 1 : a.priority_rank - b.priority_rank
+        );
+    if (view === "completed") return completed;
+    return [];
   }, [view, incomplete, completed, today]);
 
-  // Ensure selection stays valid when the visible list changes.
   useEffect(() => {
     if (selectedId && !visibleTasks.some((t) => t.id === selectedId)) {
       setSelectedId(visibleTasks[0]?.id ?? null);
@@ -128,12 +155,8 @@ export default function App() {
     [refreshIncomplete]
   );
 
-  const handleReorder = useCallback(
-    async (
-      movedId: string,
-      beforeId: string | null,
-      afterId: string | null
-    ) => {
+  const handleReorderInList = useCallback(
+    async (movedId: string, beforeId: string | null, afterId: string | null) => {
       await api.reorderTask(movedId, beforeId, afterId);
       await refreshIncomplete();
     },
@@ -148,9 +171,61 @@ export default function App() {
     [refreshAll]
   );
 
+  const handlePrioritySave = useCallback(
+    async (weekStart: string, text: string) => {
+      await api.upsertPriority(weekStart, text);
+      await refreshPriorities();
+    },
+    [refreshPriorities]
+  );
+
+  const handleToggleBanner = useCallback(
+    async (value: boolean) => {
+      setShowBanner(value);
+      await api.setShowPrioritiesBanner(value);
+    },
+    []
+  );
+
   const focusNewTask = useCallback(() => {
     newTaskInputRef.current?.focus();
   }, []);
+
+  const handleOpenPicker = useCallback(
+    (taskId: string, kind: "schedule" | "deadline", anchor: HTMLElement) => {
+      setPicker((cur) => {
+        if (cur && cur.taskId === taskId && cur.kind === kind) return null;
+        return { taskId, kind, anchor: anchor.getBoundingClientRect() };
+      });
+    },
+    []
+  );
+
+  const handleClosePicker = useCallback(() => setPicker(null), []);
+
+  const handlePickDate = useCallback(
+    async (iso: string) => {
+      const p = picker;
+      if (!p) return;
+      setPicker(null);
+      const patch =
+        p.kind === "schedule" ? { scheduled_date: iso } : { deadline: iso };
+      await api.updateTask(p.taskId, patch);
+      await refreshAll();
+    },
+    [picker, refreshAll]
+  );
+
+  const triggerRowDatePicker = useCallback(
+    (taskId: string, kind: "schedule" | "deadline") => {
+      const btn = document.querySelector<HTMLElement>(
+        `.task-row[data-task-id="${taskId}"] [data-kind="${kind}"]`
+      );
+      if (!btn) return;
+      handleOpenPicker(taskId, kind, btn);
+    },
+    [handleOpenPicker]
+  );
 
   // Keyboard shortcuts.
   useEffect(() => {
@@ -167,34 +242,37 @@ export default function App() {
         focusNewTask();
         return;
       }
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        (e.key === "s" || e.key === "S")
+      ) {
+        e.preventDefault();
+        setSidebarOpen((prev) => !prev);
+        return;
+      }
 
       if (typing) return;
 
-      if (e.key === "1") {
-        setView("intake");
-        return;
-      }
-      if (e.key === "2") {
-        setView("today");
-        return;
-      }
-      if (e.key === "3") {
-        setView("deadlines");
-        return;
-      }
-      if (e.key === "4") {
-        setView("completed");
-        return;
+      const bareKey = !e.metaKey && !e.ctrlKey && !e.altKey;
+
+      if (bareKey) {
+        if (e.key === "1") { setView("priorities"); return; }
+        if (e.key === "2") { setView("intake"); return; }
+        if (e.key === "3") { setView("today"); return; }
+        if (e.key === "4") { setView("deadlines"); return; }
+        if (e.key === "5") { setView("completed"); return; }
       }
 
       if (!selectedTask) return;
 
-      if (e.key === "Enter") {
+      if (bareKey && e.key === "Enter") {
         e.preventDefault();
         setEditingId(selectedTask.id);
         return;
       }
-      if (e.key === " ") {
+      if (bareKey && e.key === " ") {
         e.preventDefault();
         if (selectedTask.completed_at) {
           handleUncomplete(selectedTask.id);
@@ -203,14 +281,21 @@ export default function App() {
         }
         return;
       }
-      if (e.key === "t" || e.key === "T") {
-        if (view !== "completed" && view !== "deadlines") {
+      if (bareKey && (e.key === "s" || e.key === "S")) {
+        if (!selectedTask.completed_at) {
           e.preventDefault();
-          handleScheduleToday(selectedTask.id);
+          triggerRowDatePicker(selectedTask.id, "schedule");
         }
         return;
       }
-      if (e.key === "Delete" || e.key === "Backspace") {
+      if (bareKey && (e.key === "d" || e.key === "D")) {
+        if (!selectedTask.completed_at) {
+          e.preventDefault();
+          triggerRowDatePicker(selectedTask.id, "deadline");
+        }
+        return;
+      }
+      if (bareKey && (e.key === "Delete" || e.key === "Backspace")) {
         e.preventDefault();
         handleDelete(selectedTask.id);
         return;
@@ -219,7 +304,8 @@ export default function App() {
         e.preventDefault();
         const idx = visibleTasks.findIndex((t) => t.id === selectedTask.id);
         if (idx < 0) return;
-        const reorderMod = (e.metaKey || e.altKey) && view !== "deadlines" && view !== "completed";
+        const reorderMod =
+          (e.metaKey || e.altKey) && (view === "intake" || view === "today");
         if (reorderMod) {
           const targetIdx = e.key === "ArrowDown" ? idx + 1 : idx - 1;
           if (targetIdx < 0 || targetIdx >= visibleTasks.length) return;
@@ -232,7 +318,7 @@ export default function App() {
             beforeId = visibleTasks[targetIdx - 1]?.id ?? null;
             afterId = visibleTasks[targetIdx].id;
           }
-          handleReorder(selectedTask.id, beforeId, afterId);
+          handleReorderInList(selectedTask.id, beforeId, afterId);
         } else {
           const next = e.key === "ArrowDown" ? idx + 1 : idx - 1;
           if (next >= 0 && next < visibleTasks.length) {
@@ -251,20 +337,27 @@ export default function App() {
     handleComplete,
     handleUncomplete,
     handleDelete,
-    handleReorder,
+    handleReorderInList,
     handleScheduleToday,
+    triggerRowDatePicker,
     focusNewTask,
   ]);
 
   const counts = useMemo(
     () => ({
+      priorities: priorities.length,
       intake: incomplete.length,
       today: incomplete.filter((t) => t.scheduled_date === today).length,
       deadlines: incomplete.filter((t) => t.deadline !== null).length,
       completed: completed.length,
     }),
-    [incomplete, completed, today]
+    [incomplete, completed, priorities, today]
   );
+
+  const currentWeekPriority = useMemo(() => {
+    const monday = currentWorkWeekMonday();
+    return priorities.find((p) => p.week_start === monday) ?? null;
+  }, [priorities]);
 
   const editingTask = useMemo(() => {
     if (!editingId) return null;
@@ -275,50 +368,112 @@ export default function App() {
     );
   }, [editingId, incomplete, completed]);
 
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  const onDragEnd = useCallback(
+    (e: DragEndEvent) => {
+      const { active, over } = e;
+      if (!over) return;
+      const movedId = String(active.id);
+
+      if (over.id === TODAY_DROPPABLE_ID) {
+        handleScheduleToday(movedId).catch(() => {});
+        return;
+      }
+
+      // Reorder in the active list — only meaningful in Intake/Today.
+      if (view !== "intake" && view !== "today") return;
+      if (active.id === over.id) return;
+      const oldIdx = visibleTasks.findIndex((t) => t.id === active.id);
+      const newIdx = visibleTasks.findIndex((t) => t.id === over.id);
+      if (oldIdx < 0 || newIdx < 0) return;
+      const reordered = arrayMove(visibleTasks, oldIdx, newIdx);
+      const pos = reordered.findIndex((t) => t.id === active.id);
+      const beforeId = pos > 0 ? reordered[pos - 1].id : null;
+      const afterId = pos < reordered.length - 1 ? reordered[pos + 1].id : null;
+      handleReorderInList(movedId, beforeId, afterId).catch(() => {});
+    },
+    [view, visibleTasks, handleScheduleToday, handleReorderInList]
+  );
+
+  const isPriorities = view === "priorities";
+
   return (
-    <div className="app">
-      <Sidebar current={view} counts={counts} onChange={setView} />
-      <main className="main">
-        <header className="main-header">
-          <h1>{headingFor(view)}</h1>
-          <p className="subtitle">{subtitleFor(view)}</p>
-        </header>
-        {(view === "intake" || view === "today") && (
-          <NewTaskBar inputRef={newTaskInputRef} onCreate={handleCreate} view={view} />
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <div className={`app${sidebarOpen ? "" : " app--sidebar-hidden"}`}>
+        <Sidebar current={view} counts={counts} onChange={setView} />
+        <main className="main">
+          {!isPriorities && showBanner && (
+            <PrioritiesBanner
+              priority={currentWeekPriority}
+              onOpenPriorities={() => setView("priorities")}
+            />
+          )}
+          <header className="main-header">
+            <h1>{headingFor(view)}</h1>
+            <p className="subtitle">{subtitleFor(view)}</p>
+          </header>
+          {isPriorities ? (
+            <Priorities
+              priorities={priorities}
+              showBanner={showBanner}
+              onSave={handlePrioritySave}
+              onToggleBanner={handleToggleBanner}
+            />
+          ) : (
+            <>
+              {(view === "intake" || view === "today") && (
+                <NewTaskBar inputRef={newTaskInputRef} onCreate={handleCreate} view={view} />
+              )}
+              <TaskList
+                view={view}
+                tasks={visibleTasks}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onComplete={handleComplete}
+                onUncomplete={handleUncomplete}
+                onDelete={handleDelete}
+                onOpenPicker={handleOpenPicker}
+                onEdit={setEditingId}
+              />
+            </>
+          )}
+        </main>
+        {editingTask && (
+          <TaskEditor
+            task={editingTask}
+            onClose={() => setEditingId(null)}
+            onSave={async (patch) => {
+              await handleUpdate(editingTask.id, patch);
+              setEditingId(null);
+            }}
+            onDelete={async () => {
+              setEditingId(null);
+              await handleDelete(editingTask.id);
+            }}
+          />
         )}
-        <TaskList
-          view={view}
-          tasks={visibleTasks}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-          onComplete={handleComplete}
-          onUncomplete={handleUncomplete}
-          onDelete={handleDelete}
-          onScheduleToday={handleScheduleToday}
-          onReorder={handleReorder}
-          onEdit={setEditingId}
-        />
-      </main>
-      {editingTask && (
-        <TaskEditor
-          task={editingTask}
-          onClose={() => setEditingId(null)}
-          onSave={async (patch) => {
-            await handleUpdate(editingTask.id, patch);
-            setEditingId(null);
-          }}
-          onDelete={async () => {
-            setEditingId(null);
-            await handleDelete(editingTask.id);
-          }}
-        />
-      )}
-    </div>
+        {picker && (
+          <Calendar
+            value={
+              picker.kind === "schedule"
+                ? incomplete.find((t) => t.id === picker.taskId)?.scheduled_date ?? null
+                : incomplete.find((t) => t.id === picker.taskId)?.deadline ?? null
+            }
+            anchor={picker.anchor}
+            onPick={handlePickDate}
+            onClose={handleClosePicker}
+          />
+        )}
+      </div>
+    </DndContext>
   );
 }
 
 function headingFor(v: ViewName): string {
   switch (v) {
+    case "priorities":
+      return "Priorities";
     case "intake":
       return "Intake";
     case "today":
@@ -332,6 +487,8 @@ function headingFor(v: ViewName): string {
 
 function subtitleFor(v: ViewName): string {
   switch (v) {
+    case "priorities":
+      return "Your weekly outcomes — written each Monday, revisited all week.";
     case "intake":
       return "Every incomplete task, in priority order.";
     case "today":

@@ -1,14 +1,5 @@
 import {
-  DndContext,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-  type DragEndEvent,
-} from "@dnd-kit/core";
-import {
   SortableContext,
-  arrayMove,
   useSortable,
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
@@ -24,8 +15,7 @@ interface Props {
   onComplete: (id: string) => void;
   onUncomplete: (id: string) => void;
   onDelete: (id: string) => void;
-  onScheduleToday: (id: string) => void;
-  onReorder: (movedId: string, beforeId: string | null, afterId: string | null) => void;
+  onOpenPicker: (id: string, kind: "schedule" | "deadline", anchor: HTMLElement) => void;
   onEdit: (id: string) => void;
 }
 
@@ -37,76 +27,52 @@ export function TaskList({
   onComplete,
   onUncomplete,
   onDelete,
-  onScheduleToday,
-  onReorder,
+  onOpenPicker,
   onEdit,
 }: Props) {
-  const canReorder = view === "intake" || view === "today";
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } })
-  );
-
+  // Drag is enabled wherever a row can be dropped on Today; reorder is enforced
+  // by the App-level drag-end handler.
+  const canDrag = view === "intake" || view === "today" || view === "deadlines";
   const empty = tasks.length === 0;
 
-  const onDragEnd = (e: DragEndEvent) => {
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    const oldIdx = tasks.findIndex((t) => t.id === active.id);
-    const newIdx = tasks.findIndex((t) => t.id === over.id);
-    if (oldIdx < 0 || newIdx < 0) return;
-    const reordered = arrayMove(tasks, oldIdx, newIdx);
-    const pos = reordered.findIndex((t) => t.id === active.id);
-    const beforeId = pos > 0 ? reordered[pos - 1].id : null;
-    const afterId = pos < reordered.length - 1 ? reordered[pos + 1].id : null;
-    onReorder(String(active.id), beforeId, afterId);
-  };
-
-  const body = (
-    <div className="task-list">
-      {tasks.map((task) => (
-        <SortableRow
-          key={task.id}
-          task={task}
-          view={view}
-          canReorder={canReorder}
-          selected={task.id === selectedId}
-          onSelect={() => onSelect(task.id)}
-          onComplete={() => onComplete(task.id)}
-          onUncomplete={() => onUncomplete(task.id)}
-          onDelete={() => onDelete(task.id)}
-          onScheduleToday={() => onScheduleToday(task.id)}
-          onEdit={() => onEdit(task.id)}
-        />
-      ))}
-      {empty && <div className="empty">{emptyLabel(view)}</div>}
-    </div>
-  );
-
-  if (!canReorder) return body;
-
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-      <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-        {body}
-      </SortableContext>
-    </DndContext>
+    <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+      <div className="task-list">
+        {tasks.map((task) => (
+          <SortableRow
+            key={task.id}
+            task={task}
+            view={view}
+            canDrag={canDrag}
+            selected={task.id === selectedId}
+            onSelect={() => onSelect(task.id)}
+            onComplete={() => onComplete(task.id)}
+            onUncomplete={() => onUncomplete(task.id)}
+            onDelete={() => onDelete(task.id)}
+            onOpenPicker={(kind, anchor) => onOpenPicker(task.id, kind, anchor)}
+            onEdit={() => onEdit(task.id)}
+          />
+        ))}
+        {empty && <div className="empty">{emptyLabel(view)}</div>}
+      </div>
+    </SortableContext>
   );
 }
 
 function SortableRow(props: {
   task: Task;
   view: ViewName;
-  canReorder: boolean;
+  canDrag: boolean;
   selected: boolean;
   onSelect: () => void;
   onComplete: () => void;
   onUncomplete: () => void;
   onDelete: () => void;
-  onScheduleToday: () => void;
+  onOpenPicker: (kind: "schedule" | "deadline", anchor: HTMLElement) => void;
   onEdit: () => void;
 }) {
-  const { task, canReorder, ...rest } = props;
-  const sortable = useSortable({ id: task.id, disabled: !canReorder });
+  const { task, canDrag, ...rest } = props;
+  const sortable = useSortable({ id: task.id, disabled: !canDrag });
   const style = {
     transform: CSS.Transform.toString(sortable.transform),
     transition: sortable.transition,
@@ -116,8 +82,9 @@ function SortableRow(props: {
       task={task}
       view={props.view}
       selected={props.selected}
+      canDrag={canDrag}
       dragHandleProps={
-        canReorder
+        canDrag
           ? {
               attributes: sortable.attributes,
               listeners: sortable.listeners,
@@ -132,7 +99,7 @@ function SortableRow(props: {
       onComplete={rest.onComplete}
       onUncomplete={rest.onUncomplete}
       onDelete={rest.onDelete}
-      onScheduleToday={rest.onScheduleToday}
+      onOpenPicker={rest.onOpenPicker}
       onEdit={rest.onEdit}
     />
   );
@@ -140,10 +107,12 @@ function SortableRow(props: {
 
 function emptyLabel(view: ViewName): string {
   switch (view) {
+    case "priorities":
+      return "";
     case "intake":
       return "No tasks yet. Add one above.";
     case "today":
-      return "Nothing scheduled for today. Hit T on an Intake task to plan it.";
+      return "Nothing scheduled for today. Hit T on an Intake task to plan it, or drag one onto Today.";
     case "deadlines":
       return "No deadlines set.";
     case "completed":

@@ -36,6 +36,9 @@ pub fn run() {
             commands::reorder_task,
             commands::get_settings,
             commands::set_last_view,
+            commands::set_show_priorities_banner,
+            commands::list_priorities,
+            commands::upsert_priority,
         ])
         .run(tauri::generate_context!())
         .expect("error running tauri app");

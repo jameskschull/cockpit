@@ -2,12 +2,13 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::db;
-use crate::db::{DbResult, NewTaskInput, Task, UpdateTaskInput};
+use crate::db::{DbResult, NewTaskInput, Priority, Task, UpdateTaskInput};
 use crate::AppState;
 
 #[derive(Serialize)]
 pub struct Settings {
     pub last_view: String,
+    pub show_priorities_banner: bool,
 }
 
 #[tauri::command]
@@ -77,11 +78,40 @@ pub fn reorder_task(
 pub fn get_settings(state: State<'_, AppState>) -> DbResult<Settings> {
     let conn = state.db.lock().unwrap();
     let last_view = db::get_setting(&conn, "last_view")?.unwrap_or_else(|| "intake".into());
-    Ok(Settings { last_view })
+    let show_priorities_banner = db::get_setting(&conn, "show_priorities_banner")?
+        .map(|v| v == "true")
+        .unwrap_or(true);
+    Ok(Settings { last_view, show_priorities_banner })
 }
 
 #[tauri::command]
 pub fn set_last_view(state: State<'_, AppState>, view: String) -> DbResult<()> {
     let conn = state.db.lock().unwrap();
     db::set_setting(&conn, "last_view", &view)
+}
+
+#[tauri::command]
+pub fn set_show_priorities_banner(state: State<'_, AppState>, value: bool) -> DbResult<()> {
+    let conn = state.db.lock().unwrap();
+    db::set_setting(
+        &conn,
+        "show_priorities_banner",
+        if value { "true" } else { "false" },
+    )
+}
+
+#[tauri::command]
+pub fn list_priorities(state: State<'_, AppState>) -> DbResult<Vec<Priority>> {
+    let conn = state.db.lock().unwrap();
+    db::list_priorities(&conn)
+}
+
+#[tauri::command]
+pub fn upsert_priority(
+    state: State<'_, AppState>,
+    week_start: String,
+    text: String,
+) -> DbResult<Option<Priority>> {
+    let conn = state.db.lock().unwrap();
+    db::upsert_priority(&conn, &week_start, &text)
 }
