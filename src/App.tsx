@@ -10,7 +10,7 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import type { Priority, Task, ViewName } from "./types";
 import { api } from "./api";
-import { currentWorkWeekMonday, todayIso } from "./util";
+import { currentWorkWeekMonday, localIsoDate, todayIso } from "./util";
 import { Sidebar, TODAY_DROPPABLE_ID } from "./components/Sidebar";
 import { TaskList } from "./components/TaskList";
 import { TaskEditor } from "./components/TaskEditor";
@@ -38,6 +38,7 @@ export default function App() {
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loaded, setLoaded] = useState(false);
+  const [completingIds, setCompletingIds] = useState<Set<string>>(() => new Set());
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
 
   const refreshIncomplete = useCallback(async () => {
@@ -119,8 +120,27 @@ export default function App() {
 
   const handleComplete = useCallback(
     async (id: string) => {
+      let alreadyCompleting = false;
+      setCompletingIds((prev) => {
+        if (prev.has(id)) {
+          alreadyCompleting = true;
+          return prev;
+        }
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      });
+      if (alreadyCompleting) return;
+      // Let the row animation play before the data refresh removes the row.
+      await new Promise((resolve) => setTimeout(resolve, 380));
       await api.completeTask(id);
       await refreshAll();
+      setCompletingIds((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     },
     [refreshAll]
   );
@@ -354,6 +374,23 @@ export default function App() {
     [incomplete, completed, priorities, today]
   );
 
+  const completedTodayCount = useMemo(
+    () =>
+      completed.filter(
+        (t) => t.completed_at && localIsoDate(t.completed_at) === today
+      ).length,
+    [completed, today]
+  );
+
+  const [bumpStat, setBumpStat] = useState(0);
+  const prevCompletedTodayRef = useRef(completedTodayCount);
+  useEffect(() => {
+    if (loaded && completedTodayCount > prevCompletedTodayRef.current) {
+      setBumpStat((n) => n + 1);
+    }
+    prevCompletedTodayRef.current = completedTodayCount;
+  }, [completedTodayCount, loaded]);
+
   const currentWeekPriority = useMemo(() => {
     const monday = currentWorkWeekMonday();
     return priorities.find((p) => p.week_start === monday) ?? null;
@@ -410,7 +447,22 @@ export default function App() {
             />
           )}
           <header className="main-header">
-            <h1>{headingFor(view)}</h1>
+            <div className="main-header-row">
+              <h1>{headingFor(view)}</h1>
+              {view === "today" && (
+                <span className="header-stat" aria-live="polite">
+                  <span
+                    key={bumpStat}
+                    className={`header-stat-count${
+                      bumpStat > 0 ? " header-stat-count--bump" : ""
+                    }`}
+                  >
+                    {completedTodayCount}
+                  </span>
+                  completed today
+                </span>
+              )}
+            </div>
             <p className="subtitle">{subtitleFor(view)}</p>
           </header>
           {isPriorities ? (
@@ -423,12 +475,13 @@ export default function App() {
           ) : (
             <>
               {(view === "intake" || view === "today") && (
-                <NewTaskBar inputRef={newTaskInputRef} onCreate={handleCreate} view={view} />
+                <NewTaskBar inputRef={newTaskInputRef} onCreate={handleCreate} />
               )}
               <TaskList
                 view={view}
                 tasks={visibleTasks}
                 selectedId={selectedId}
+                completingIds={completingIds}
                 onSelect={setSelectedId}
                 onComplete={handleComplete}
                 onUncomplete={handleUncomplete}
@@ -492,7 +545,7 @@ function subtitleFor(v: ViewName): string {
     case "intake":
       return "Every incomplete task, in priority order.";
     case "today":
-      return "Scheduled for today. Reorder here and it updates global priority.";
+      return "Scheduled for today.";
     case "deadlines":
       return "Tasks with a hard deadline, soonest first.";
     case "completed":

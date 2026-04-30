@@ -11,6 +11,7 @@ interface Props {
   view: ViewName;
   tasks: Task[];
   selectedId: string | null;
+  completingIds?: ReadonlySet<string>;
   onSelect: (id: string) => void;
   onComplete: (id: string) => void;
   onUncomplete: (id: string) => void;
@@ -23,6 +24,7 @@ export function TaskList({
   view,
   tasks,
   selectedId,
+  completingIds,
   onSelect,
   onComplete,
   onUncomplete,
@@ -45,6 +47,7 @@ export function TaskList({
             view={view}
             canDrag={canDrag}
             selected={task.id === selectedId}
+            isCompleting={completingIds?.has(task.id)}
             onSelect={() => onSelect(task.id)}
             onComplete={() => onComplete(task.id)}
             onUncomplete={() => onUncomplete(task.id)}
@@ -64,6 +67,7 @@ function SortableRow(props: {
   view: ViewName;
   canDrag: boolean;
   selected: boolean;
+  isCompleting?: boolean;
   onSelect: () => void;
   onComplete: () => void;
   onUncomplete: () => void;
@@ -71,8 +75,8 @@ function SortableRow(props: {
   onOpenPicker: (kind: "schedule" | "deadline", anchor: HTMLElement) => void;
   onEdit: () => void;
 }) {
-  const { task, canDrag, ...rest } = props;
-  const sortable = useSortable({ id: task.id, disabled: !canDrag });
+  const { task, canDrag, isCompleting, ...rest } = props;
+  const sortable = useSortable({ id: task.id, disabled: !canDrag || !!isCompleting });
   const style = {
     transform: CSS.Transform.toString(sortable.transform),
     transition: sortable.transition,
@@ -83,6 +87,7 @@ function SortableRow(props: {
       view={props.view}
       selected={props.selected}
       canDrag={canDrag}
+      isCompleting={isCompleting}
       dragHandleProps={
         canDrag
           ? {

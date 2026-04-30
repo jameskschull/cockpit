@@ -8,6 +8,7 @@ interface Props {
   view: ViewName;
   selected: boolean;
   canDrag: boolean;
+  isCompleting?: boolean;
   dragHandleProps?: {
     attributes?: DraggableAttributes;
     listeners?: DraggableSyntheticListeners;
@@ -28,6 +29,7 @@ export function TaskRow({
   task,
   selected,
   canDrag,
+  isCompleting,
   dragHandleProps,
   onSelect,
   onComplete,
@@ -36,7 +38,8 @@ export function TaskRow({
   onOpenPicker,
   onEdit,
 }: Props) {
-  const overdue = isOverdue(task.deadline) && !task.completed_at;
+  const completed = !!task.completed_at || !!isCompleting;
+  const overdue = isOverdue(task.deadline) && !completed;
   const scheduledToday = task.scheduled_date === todayIso();
   const hasSchedule = !!task.scheduled_date;
   const hasDeadline = !!task.deadline;
@@ -55,7 +58,8 @@ export function TaskRow({
       className={classNames(
         "task-row",
         selected && "task-row--selected",
-        !!task.completed_at && "task-row--completed",
+        completed && "task-row--completed",
+        isCompleting && "task-row--completing",
         overdue && "task-row--overdue",
         dragHandleProps?.isDragging && "task-row--dragging"
       )}
@@ -79,7 +83,8 @@ export function TaskRow({
       <label className="task-checkbox" onClick={(e) => e.stopPropagation()}>
         <input
           type="checkbox"
-          checked={!!task.completed_at}
+          checked={completed}
+          disabled={isCompleting}
           onChange={() => (task.completed_at ? onUncomplete() : onComplete())}
         />
         <span className="task-checkbox-box" aria-hidden />
@@ -93,7 +98,7 @@ export function TaskRow({
         )}
       </div>
       <div className="task-actions" onClick={(e) => e.stopPropagation()}>
-        {!task.completed_at && (
+        {!completed && (
           <>
             <DateAction
               label={scheduleLabel}

@@ -6,6 +6,15 @@ export function todayIso(): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Local YYYY-MM-DD for an RFC 3339 / ISO timestamp (server stores UTC). */
+export function localIsoDate(rfc: string): string {
+  const d = new Date(rfc);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export function isOverdue(deadline: string | null): boolean {
   if (!deadline) return false;
   return deadline < todayIso();

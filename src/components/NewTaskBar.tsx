@@ -1,18 +1,13 @@
 import { useState, type RefObject } from "react";
-import type { ViewName } from "../types";
 
 interface Props {
-  view: ViewName;
   inputRef: RefObject<HTMLInputElement>;
   onCreate: (title: string) => Promise<void>;
 }
 
-export function NewTaskBar({ view, inputRef, onCreate }: Props) {
+export function NewTaskBar({ inputRef, onCreate }: Props) {
   const [title, setTitle] = useState("");
-  const placeholder =
-    view === "today"
-      ? "Add a task (won't auto-schedule for today — use T)…"
-      : "Add a task…";
+  const placeholder = "Add a task…";
 
   const submit = async () => {
     const t = title.trim();
