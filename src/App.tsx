@@ -8,9 +8,12 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
+import type { Session } from "@supabase/supabase-js";
 import type { Priority, Task, ViewName } from "./types";
 import { api } from "./api";
+import { supabase } from "./lib/supabase";
 import { currentWorkWeekMonday, localIsoDate, todayIso } from "./util";
+import { Auth } from "./components/Auth";
 import { Sidebar, TODAY_DROPPABLE_ID } from "./components/Sidebar";
 import { TaskList } from "./components/TaskList";
 import { TaskEditor } from "./components/TaskEditor";
@@ -28,6 +31,31 @@ interface PickerState {
 const KNOWN_VIEWS: ViewName[] = ["priorities", "intake", "today", "deadlines", "completed"];
 
 export default function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setAuthReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+      setSession(sess);
+    });
+    return () => sub.subscription.unsubscribe();
+  }, []);
+
+  if (!authReady) return null;
+  if (!session) return <Auth />;
+  return (
+    <Cockpit
+      key={session.user.id}
+      onSignOut={() => supabase.auth.signOut()}
+    />
+  );
+}
+
+function Cockpit({ onSignOut }: { onSignOut: () => void }) {
   const [view, setView] = useState<ViewName>("intake");
   const [incomplete, setIncomplete] = useState<Task[]>([]);
   const [completed, setCompleted] = useState<Task[]>([]);
@@ -438,7 +466,7 @@ export default function App() {
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <div className={`app${sidebarOpen ? "" : " app--sidebar-hidden"}`}>
-        <Sidebar current={view} counts={counts} onChange={setView} />
+        <Sidebar current={view} counts={counts} onChange={setView} onSignOut={onSignOut} />
         <main className="main">
           {!isPriorities && showBanner && (
             <PrioritiesBanner

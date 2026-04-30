@@ -6,6 +6,7 @@ interface Props {
   current: ViewName;
   counts: Record<ViewName, number>;
   onChange: (v: ViewName) => void;
+  onSignOut?: () => void;
 }
 
 const ITEMS: { view: ViewName; label: string; hotkey: string }[] = [
@@ -18,7 +19,7 @@ const ITEMS: { view: ViewName; label: string; hotkey: string }[] = [
 
 export const TODAY_DROPPABLE_ID = "drop-today";
 
-export function Sidebar({ current, counts, onChange }: Props) {
+export function Sidebar({ current, counts, onChange, onSignOut }: Props) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">Cockpit</div>
@@ -57,6 +58,11 @@ export function Sidebar({ current, counts, onChange }: Props) {
         <div className="shortcut-row"><kbd>S</kbd><span>Schedule…</span></div>
         <div className="shortcut-row"><kbd>D</kbd><span>Deadline…</span></div>
         <div className="shortcut-row"><kbd>⌘</kbd><kbd>↑↓</kbd><span>Reorder</span></div>
+        {onSignOut && (
+          <button type="button" className="sidebar-signout" onClick={onSignOut}>
+            Sign out
+          </button>
+        )}
       </footer>
     </aside>
   );
