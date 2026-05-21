@@ -1324,6 +1324,40 @@ kbd {
   color: var(--danger);
 }
 
+.auth-code {
+  font-size: 18px;
+  letter-spacing: 0.4em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.auth-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.auth-back {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.auth-back:hover:not(:disabled) {
+  color: var(--text);
+}
+
+.auth-back:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
 /* Sign-out button in sidebar */
 .sidebar-signout {
   font-size: 11px;

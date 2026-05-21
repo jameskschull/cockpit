@@ -22,9 +22,12 @@
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.0.0",
+    "@types/better-sqlite3": "^7.6.13",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "better-sqlite3": "^12.10.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.5.3",
     "vite": "^5.3.4",
     "vite-plugin-pwa": "^1.2.0"
