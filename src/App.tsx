@@ -21,6 +21,7 @@ import { NewTaskBar } from "./components/NewTaskBar";
 import { Priorities } from "./components/Priorities";
 import { PrioritiesBanner } from "./components/PrioritiesBanner";
 import { Calendar } from "./components/Calendar";
+import { FeedbackView } from "./components/FeedbackView";
 
 interface PickerState {
   taskId: string;
@@ -28,7 +29,7 @@ interface PickerState {
   anchor: DOMRect;
 }
 
-const KNOWN_VIEWS: ViewName[] = ["priorities", "intake", "today", "deadlines", "completed"];
+const KNOWN_VIEWS: ViewName[] = ["priorities", "intake", "today", "completed", "feedback"];
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -107,13 +108,6 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
   const visibleTasks = useMemo(() => {
     if (view === "intake") return incomplete;
     if (view === "today") return incomplete.filter((t) => t.scheduled_date === today);
-    if (view === "deadlines")
-      return incomplete
-        .filter((t) => t.deadline !== null)
-        .slice()
-        .sort((a, b) =>
-          a.deadline! < b.deadline! ? -1 : a.deadline! > b.deadline! ? 1 : a.priority_rank - b.priority_rank
-        );
     if (view === "completed") return completed;
     return [];
   }, [view, incomplete, completed, today]);
@@ -338,8 +332,8 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
         if (e.key === "1") { setView("priorities"); return; }
         if (e.key === "2") { setView("intake"); return; }
         if (e.key === "3") { setView("today"); return; }
-        if (e.key === "4") { setView("deadlines"); return; }
-        if (e.key === "5") { setView("completed"); return; }
+        if (e.key === "4") { setView("completed"); return; }
+        if (e.key === "5") { setView("feedback"); return; }
       }
 
       if (!selectedTask) return;
@@ -432,8 +426,8 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
       priorities: priorities.length,
       intake: incomplete.length,
       today: incomplete.filter((t) => t.scheduled_date === today).length,
-      deadlines: incomplete.filter((t) => t.deadline !== null).length,
       completed: completed.length,
+      feedback: 0,
     }),
     [incomplete, completed, priorities, today]
   );
@@ -498,37 +492,40 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
   );
 
   const isPriorities = view === "priorities";
+  const isFeedback = view === "feedback";
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <div className={`app${sidebarOpen ? "" : " app--sidebar-hidden"}`}>
         <Sidebar current={view} counts={counts} onChange={setView} onSignOut={onSignOut} />
         <main className="main">
-          {!isPriorities && showBanner && (
+          {!isPriorities && !isFeedback && showBanner && (
             <PrioritiesBanner
               priority={currentWeekPriority}
               onOpenPriorities={() => setView("priorities")}
             />
           )}
-          <header className="main-header">
-            <div className="main-header-row">
-              <h1>{headingFor(view)}</h1>
-              {view === "today" && (
-                <span className="header-stat" aria-live="polite">
-                  <span
-                    key={bumpStat}
-                    className={`header-stat-count${
-                      bumpStat > 0 ? " header-stat-count--bump" : ""
-                    }`}
-                  >
-                    {completedTodayCount}
+          {!isFeedback && (
+            <header className="main-header">
+              <div className="main-header-row">
+                <h1>{headingFor(view)}</h1>
+                {view === "today" && (
+                  <span className="header-stat" aria-live="polite">
+                    <span
+                      key={bumpStat}
+                      className={`header-stat-count${
+                        bumpStat > 0 ? " header-stat-count--bump" : ""
+                      }`}
+                    >
+                      {completedTodayCount}
+                    </span>
+                    completed today
                   </span>
-                  completed today
-                </span>
-              )}
-            </div>
-            <p className="subtitle">{subtitleFor(view)}</p>
-          </header>
+                )}
+              </div>
+              <p className="subtitle">{subtitleFor(view)}</p>
+            </header>
+          )}
           {isPriorities ? (
             <Priorities
               priorities={priorities}
@@ -536,6 +533,8 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
               onSave={handlePrioritySave}
               onToggleBanner={handleToggleBanner}
             />
+          ) : isFeedback ? (
+            <FeedbackView />
           ) : (
             <>
               {(view === "intake" || view === "today") && (
@@ -595,10 +594,10 @@ function headingFor(v: ViewName): string {
       return "Intake";
     case "today":
       return "Today";
-    case "deadlines":
-      return "Deadlines";
     case "completed":
       return "Completed";
+    case "feedback":
+      return "Feedback";
   }
 }
 
@@ -610,9 +609,9 @@ function subtitleFor(v: ViewName): string {
       return "Every incomplete task, in priority order.";
     case "today":
       return "Scheduled for today.";
-    case "deadlines":
-      return "Tasks with a hard deadline, soonest first.";
     case "completed":
       return "Most recently finished first.";
+    case "feedback":
+      return "Track developmental feedback for your teammates.";
   }
 }

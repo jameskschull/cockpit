@@ -34,7 +34,7 @@ export function TaskList({
 }: Props) {
   // Drag is enabled wherever a row can be dropped on Today; reorder is enforced
   // by the App-level drag-end handler.
-  const canDrag = view === "intake" || view === "today" || view === "deadlines";
+  const canDrag = view === "intake" || view === "today";
   const empty = tasks.length === 0;
 
   return (
@@ -118,9 +118,9 @@ function emptyLabel(view: ViewName): string {
       return "No tasks yet. Add one above.";
     case "today":
       return "Nothing scheduled for today. Hit T on an Intake task to plan it, or drag one onto Today.";
-    case "deadlines":
-      return "No deadlines set.";
     case "completed":
       return "Nothing completed yet.";
+    case "feedback":
+      return "";
   }
 }
