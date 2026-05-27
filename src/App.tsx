@@ -135,15 +135,37 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
     await Promise.all([refreshIncomplete(), refreshCompleted()]);
   }, [refreshIncomplete, refreshCompleted]);
 
+  const ensureScheduledOrder = useCallback(
+    async (id: string, scheduledDate: string | null) => {
+      if (!scheduledDate) return;
+      const list = await api.listIncomplete();
+      const selfIdx = list.findIndex((t) => t.id === id);
+      if (selfIdx === -1) return;
+      const firstLaterIdx = list.findIndex(
+        (t, i) =>
+          i !== selfIdx &&
+          t.scheduled_date !== null &&
+          t.scheduled_date > scheduledDate
+      );
+      if (firstLaterIdx === -1 || firstLaterIdx > selfIdx) return;
+      const target = list[firstLaterIdx];
+      const beforeId = firstLaterIdx > 0 ? list[firstLaterIdx - 1].id : null;
+      await api.reorderTask(id, beforeId, target.id);
+    },
+    []
+  );
+
   const handleCreate = useCallback(
     async (title: string) => {
       const t = title.trim();
       if (!t) return;
-      const task = await api.createTask({ title: t });
+      const scheduled = view === "today" ? today : null;
+      const task = await api.createTask({ title: t, scheduled_date: scheduled });
+      await ensureScheduledOrder(task.id, scheduled);
       await refreshIncomplete();
       setSelectedId(task.id);
     },
-    [refreshIncomplete]
+    [view, today, ensureScheduledOrder, refreshIncomplete]
   );
 
   const handleComplete = useCallback(
@@ -198,9 +220,10 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
   const handleScheduleToday = useCallback(
     async (id: string) => {
       await api.scheduleForToday(id);
+      await ensureScheduledOrder(id, today);
       await refreshIncomplete();
     },
-    [refreshIncomplete]
+    [today, ensureScheduledOrder, refreshIncomplete]
   );
 
   const handleReorderInList = useCallback(
@@ -214,9 +237,12 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
   const handleUpdate = useCallback(
     async (id: string, patch: Parameters<typeof api.updateTask>[1]) => {
       await api.updateTask(id, patch);
+      if (patch.scheduled_date) {
+        await ensureScheduledOrder(id, patch.scheduled_date);
+      }
       await refreshAll();
     },
-    [refreshAll]
+    [ensureScheduledOrder, refreshAll]
   );
 
   const handlePrioritySave = useCallback(
@@ -259,9 +285,12 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
       const patch =
         p.kind === "schedule" ? { scheduled_date: iso } : { deadline: iso };
       await api.updateTask(p.taskId, patch);
+      if (p.kind === "schedule") {
+        await ensureScheduledOrder(p.taskId, iso);
+      }
       await refreshAll();
     },
-    [picker, refreshAll]
+    [picker, ensureScheduledOrder, refreshAll]
   );
 
   const triggerRowDatePicker = useCallback(
@@ -333,6 +362,13 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
         if (!selectedTask.completed_at) {
           e.preventDefault();
           triggerRowDatePicker(selectedTask.id, "schedule");
+        }
+        return;
+      }
+      if (bareKey && (e.key === "t" || e.key === "T")) {
+        if (!selectedTask.completed_at) {
+          e.preventDefault();
+          handleScheduleToday(selectedTask.id);
         }
         return;
       }
