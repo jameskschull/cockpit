@@ -123,6 +123,17 @@ kbd {
   gap: 2px;
 }
 
+.sidebar-group-label {
+  margin-top: 5px;
+  padding: 7px 10px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.sidebar-item--section-start {
+  margin-top: 5px;
+}
+
 .sidebar-item {
   display: grid;
   grid-template-columns: 1fr auto auto;
@@ -133,6 +144,10 @@ kbd {
   text-align: left;
   color: var(--text-dim);
   transition: background 0.08s;
+}
+
+.sidebar-item--nested {
+  padding-left: 22px;
 }
 
 .sidebar-item:hover {
@@ -741,7 +756,7 @@ kbd {
 .datepicker-footer {
   display: flex;
   justify-content: space-between;
-  margin-top: 8px;
+  margin-top: 5px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
 }
@@ -1278,7 +1293,7 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 5px;
 }
 
 .auth-input {

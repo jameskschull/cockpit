@@ -29,7 +29,7 @@ interface PickerState {
   anchor: DOMRect;
 }
 
-const KNOWN_VIEWS: ViewName[] = ["priorities", "intake", "today", "deadlines", "completed", "feedback"];
+const KNOWN_VIEWS: ViewName[] = ["priorities", "intake", "today", "completed", "feedback"];
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -108,13 +108,6 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
   const visibleTasks = useMemo(() => {
     if (view === "intake") return incomplete;
     if (view === "today") return incomplete.filter((t) => t.scheduled_date === today);
-    if (view === "deadlines")
-      return incomplete
-        .filter((t) => t.deadline !== null)
-        .slice()
-        .sort((a, b) =>
-          a.deadline! < b.deadline! ? -1 : a.deadline! > b.deadline! ? 1 : a.priority_rank - b.priority_rank
-        );
     if (view === "completed") return completed;
     return [];
   }, [view, incomplete, completed, today]);
@@ -339,9 +332,8 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
         if (e.key === "1") { setView("priorities"); return; }
         if (e.key === "2") { setView("intake"); return; }
         if (e.key === "3") { setView("today"); return; }
-        if (e.key === "4") { setView("deadlines"); return; }
-        if (e.key === "5") { setView("completed"); return; }
-        if (e.key === "6") { setView("feedback"); return; }
+        if (e.key === "4") { setView("completed"); return; }
+        if (e.key === "5") { setView("feedback"); return; }
       }
 
       if (!selectedTask) return;
@@ -434,7 +426,6 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
       priorities: priorities.length,
       intake: incomplete.length,
       today: incomplete.filter((t) => t.scheduled_date === today).length,
-      deadlines: incomplete.filter((t) => t.deadline !== null).length,
       completed: completed.length,
       feedback: 0,
     }),
@@ -603,8 +594,6 @@ function headingFor(v: ViewName): string {
       return "Intake";
     case "today":
       return "Today";
-    case "deadlines":
-      return "Deadlines";
     case "completed":
       return "Completed";
     case "feedback":
@@ -620,8 +609,6 @@ function subtitleFor(v: ViewName): string {
       return "Every incomplete task, in priority order.";
     case "today":
       return "Scheduled for today.";
-    case "deadlines":
-      return "Tasks with a hard deadline, soonest first.";
     case "completed":
       return "Most recently finished first.";
     case "feedback":

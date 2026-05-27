@@ -14,7 +14,6 @@ export type ViewName =
   | "priorities"
   | "intake"
   | "today"
-  | "deadlines"
   | "completed"
   | "feedback";
 
