@@ -15,6 +15,7 @@ const ITEMS: { view: ViewName; label: string; hotkey: string }[] = [
   { view: "today", label: "Today", hotkey: "3" },
   { view: "deadlines", label: "Deadlines", hotkey: "4" },
   { view: "completed", label: "Completed", hotkey: "5" },
+  { view: "feedback", label: "Feedback", hotkey: "6" },
 ];
 
 export const TODAY_DROPPABLE_ID = "drop-today";

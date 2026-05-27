@@ -355,3 +355,248 @@ begin
   return v_row;
 end;
 $$;
+
+-- ── teammates ────────────────────────────────────────────────────────────────
+
+create table if not exists public.teammates (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists teammates_user_idx
+  on public.teammates (user_id, archived_at);
+
+-- ── feedback ────────────────────────────────────────────────────────────────
+
+create table if not exists public.feedback (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  teammate_id uuid not null references public.teammates(id) on delete cascade,
+  observation_date date not null,
+  synthesis text,
+  specific_coaching text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists feedback_teammate_date_idx
+  on public.feedback (teammate_id, observation_date desc);
+
+-- ── feedback_strengths / feedback_weaknesses ────────────────────────────────
+
+create table if not exists public.feedback_strengths (
+  id uuid primary key default gen_random_uuid(),
+  feedback_id uuid not null references public.feedback(id) on delete cascade,
+  text text not null,
+  position int not null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.feedback_weaknesses (
+  id uuid primary key default gen_random_uuid(),
+  feedback_id uuid not null references public.feedback(id) on delete cascade,
+  text text not null,
+  position int not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists feedback_strengths_feedback_idx
+  on public.feedback_strengths (feedback_id, position);
+create index if not exists feedback_weaknesses_feedback_idx
+  on public.feedback_weaknesses (feedback_id, position);
+
+-- ── feedback RLS ─────────────────────────────────────────────────────────────
+
+alter table public.teammates           enable row level security;
+alter table public.feedback            enable row level security;
+alter table public.feedback_strengths  enable row level security;
+alter table public.feedback_weaknesses enable row level security;
+
+drop policy if exists teammates_owner           on public.teammates;
+drop policy if exists feedback_owner            on public.feedback;
+drop policy if exists feedback_strengths_owner  on public.feedback_strengths;
+drop policy if exists feedback_weaknesses_owner on public.feedback_weaknesses;
+
+create policy teammates_owner on public.teammates
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy feedback_owner on public.feedback
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+create policy feedback_strengths_owner on public.feedback_strengths
+  for all using (
+    exists (select 1 from public.feedback f
+            where f.id = feedback_id and f.user_id = auth.uid())
+  ) with check (
+    exists (select 1 from public.feedback f
+            where f.id = feedback_id and f.user_id = auth.uid())
+  );
+create policy feedback_weaknesses_owner on public.feedback_weaknesses
+  for all using (
+    exists (select 1 from public.feedback f
+            where f.id = feedback_id and f.user_id = auth.uid())
+  ) with check (
+    exists (select 1 from public.feedback f
+            where f.id = feedback_id and f.user_id = auth.uid())
+  );
+
+-- ── feedback triggers: auto-fill user_id on insert ───────────────────────────
+
+drop trigger if exists teammates_set_user_id on public.teammates;
+drop trigger if exists feedback_set_user_id  on public.feedback;
+
+create trigger teammates_set_user_id before insert on public.teammates
+  for each row execute function public.set_user_id();
+create trigger feedback_set_user_id  before insert on public.feedback
+  for each row execute function public.set_user_id();
+
+-- ── add_quick_feedback ───────────────────────────────────────────────────────
+-- One strength or weakness on a new feedback row. Enforces the OR-rule by
+-- construction (exactly one row is inserted into one of the child tables).
+
+create or replace function public.add_quick_feedback(
+  p_teammate_id uuid,
+  p_kind text,
+  p_text text,
+  p_observation_date date default null
+) returns public.feedback
+language plpgsql security invoker as $$
+declare
+  v_uid uuid := auth.uid();
+  v_row public.feedback;
+  v_text text := btrim(coalesce(p_text, ''));
+  v_date date := coalesce(p_observation_date, (now() at time zone 'utc')::date);
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+  if p_kind not in ('strength', 'weakness') then
+    raise exception 'kind must be strength or weakness';
+  end if;
+  if v_text = '' then
+    raise exception 'text is required';
+  end if;
+
+  perform 1 from public.teammates
+    where id = p_teammate_id and user_id = v_uid;
+  if not found then raise exception 'teammate not found'; end if;
+
+  insert into public.feedback (user_id, teammate_id, observation_date)
+    values (v_uid, p_teammate_id, v_date)
+    returning * into v_row;
+
+  if p_kind = 'strength' then
+    insert into public.feedback_strengths (feedback_id, text, position)
+      values (v_row.id, v_text, 0);
+  else
+    insert into public.feedback_weaknesses (feedback_id, text, position)
+      values (v_row.id, v_text, 0);
+  end if;
+
+  return v_row;
+end;
+$$;
+
+-- ── upsert_feedback ──────────────────────────────────────────────────────────
+-- Full create-or-edit path for the synthesis modal. When editing, strengths
+-- and weaknesses are replaced atomically (delete + insert with new positions).
+-- Enforces the OR-rule: at least one non-empty strength or weakness.
+
+create or replace function public.upsert_feedback(
+  p_id uuid,
+  p_teammate_id uuid,
+  p_observation_date date,
+  p_synthesis text,
+  p_specific_coaching text,
+  p_strengths text[],
+  p_weaknesses text[]
+) returns public.feedback
+language plpgsql security invoker as $$
+declare
+  v_uid uuid := auth.uid();
+  v_row public.feedback;
+  v_synthesis text;
+  v_coaching text;
+  v_strengths text[];
+  v_weaknesses text[];
+  v_item text;
+  v_pos int;
+begin
+  if v_uid is null then
+    raise exception 'not authenticated';
+  end if;
+  if p_observation_date is null then
+    raise exception 'observation_date is required';
+  end if;
+
+  perform 1 from public.teammates
+    where id = p_teammate_id and user_id = v_uid;
+  if not found then raise exception 'teammate not found'; end if;
+
+  -- Normalize: trim, drop empties.
+  select coalesce(array_agg(t), '{}')::text[] into v_strengths
+    from (
+      select btrim(s) as t
+      from unnest(coalesce(p_strengths, '{}'::text[])) as s
+    ) sub
+    where t <> '';
+  select coalesce(array_agg(t), '{}')::text[] into v_weaknesses
+    from (
+      select btrim(s) as t
+      from unnest(coalesce(p_weaknesses, '{}'::text[])) as s
+    ) sub
+    where t <> '';
+
+  if coalesce(array_length(v_strengths, 1), 0)
+     + coalesce(array_length(v_weaknesses, 1), 0) < 1 then
+    raise exception 'feedback requires at least one strength or weakness';
+  end if;
+
+  if p_synthesis is not null and btrim(p_synthesis) <> '' then
+    v_synthesis := btrim(p_synthesis);
+  end if;
+  if p_specific_coaching is not null and btrim(p_specific_coaching) <> '' then
+    v_coaching := btrim(p_specific_coaching);
+  end if;
+
+  if p_id is null then
+    insert into public.feedback (
+      user_id, teammate_id, observation_date, synthesis, specific_coaching
+    ) values (
+      v_uid, p_teammate_id, p_observation_date, v_synthesis, v_coaching
+    )
+    returning * into v_row;
+  else
+    update public.feedback
+      set teammate_id = p_teammate_id,
+          observation_date = p_observation_date,
+          synthesis = v_synthesis,
+          specific_coaching = v_coaching,
+          updated_at = now()
+      where id = p_id and user_id = v_uid
+      returning * into v_row;
+    if not found then raise exception 'feedback not found'; end if;
+
+    delete from public.feedback_strengths  where feedback_id = v_row.id;
+    delete from public.feedback_weaknesses where feedback_id = v_row.id;
+  end if;
+
+  v_pos := 0;
+  foreach v_item in array v_strengths loop
+    insert into public.feedback_strengths (feedback_id, text, position)
+      values (v_row.id, v_item, v_pos);
+    v_pos := v_pos + 1;
+  end loop;
+
+  v_pos := 0;
+  foreach v_item in array v_weaknesses loop
+    insert into public.feedback_weaknesses (feedback_id, text, position)
+      values (v_row.id, v_item, v_pos);
+    v_pos := v_pos + 1;
+  end loop;
+
+  return v_row;
+end;
+$$;

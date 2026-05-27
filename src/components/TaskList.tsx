@@ -122,5 +122,7 @@ function emptyLabel(view: ViewName): string {
       return "No deadlines set.";
     case "completed":
       return "Nothing completed yet.";
+    case "feedback":
+      return "";
   }
 }

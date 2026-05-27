@@ -1,5 +1,17 @@
 import { supabase } from "./lib/supabase";
-import type { AppSettings, NewTaskInput, Priority, Task, UpdateTaskInput } from "./types";
+import type {
+  AppSettings,
+  Feedback,
+  FeedbackKind,
+  FeedbackStrength,
+  FeedbackWeakness,
+  NewTaskInput,
+  Priority,
+  Task,
+  Teammate,
+  UpdateTaskInput,
+  UpsertFeedbackInput,
+} from "./types";
 
 const SETTING_LAST_VIEW = "last_view";
 const SETTING_SHOW_PRIORITIES_BANNER = "show_priorities_banner";
@@ -118,6 +130,164 @@ export const api = {
     });
     if (error) throw new Error(error.message);
     return (data as Priority | null) ?? null;
+  },
+
+  listTeammates: async (includeArchived = false): Promise<Teammate[]> => {
+    const q = supabase.from("teammates").select("*");
+    const { data, error } = includeArchived
+      ? await q.order("name", { ascending: true })
+      : await q.is("archived_at", null).order("name", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Teammate[];
+  },
+
+  createTeammate: async (name: string): Promise<Teammate> => {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error("name is required");
+    const { data, error } = await supabase
+      .from("teammates")
+      .insert({ name: trimmed })
+      .select("*")
+      .single();
+    return unwrap(data as Teammate | null, error);
+  },
+
+  renameTeammate: async (id: string, name: string): Promise<Teammate> => {
+    const trimmed = name.trim();
+    if (!trimmed) throw new Error("name is required");
+    const { data, error } = await supabase
+      .from("teammates")
+      .update({ name: trimmed, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select("*")
+      .single();
+    return unwrap(data as Teammate | null, error);
+  },
+
+  archiveTeammate: async (id: string): Promise<Teammate> => {
+    const now = new Date().toISOString();
+    const { data, error } = await supabase
+      .from("teammates")
+      .update({ archived_at: now, updated_at: now })
+      .eq("id", id)
+      .select("*")
+      .single();
+    return unwrap(data as Teammate | null, error);
+  },
+
+  unarchiveTeammate: async (id: string): Promise<Teammate> => {
+    const { data, error } = await supabase
+      .from("teammates")
+      .update({ archived_at: null, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select("*")
+      .single();
+    return unwrap(data as Teammate | null, error);
+  },
+
+  deleteTeammate: async (id: string): Promise<void> => {
+    const { error } = await supabase.from("teammates").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+  },
+
+  listFeedback: async (teammateId: string): Promise<Feedback[]> => {
+    const { data, error } = await supabase
+      .from("feedback")
+      .select(
+        "id, teammate_id, observation_date, synthesis, specific_coaching, created_at, updated_at, " +
+          "feedback_strengths (id, text, position), " +
+          "feedback_weaknesses (id, text, position)"
+      )
+      .eq("teammate_id", teammateId)
+      .order("observation_date", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (error) throw new Error(error.message);
+
+    type Row = Omit<Feedback, "strengths" | "weaknesses"> & {
+      feedback_strengths: FeedbackStrength[] | null;
+      feedback_weaknesses: FeedbackWeakness[] | null;
+    };
+    const rows = ((data ?? []) as unknown) as Row[];
+    return rows.map(({ feedback_strengths, feedback_weaknesses, ...rest }) => ({
+      ...rest,
+      strengths: (feedback_strengths ?? [])
+        .slice()
+        .sort((a, b) => a.position - b.position),
+      weaknesses: (feedback_weaknesses ?? [])
+        .slice()
+        .sort((a, b) => a.position - b.position),
+    }));
+  },
+
+  addQuickFeedback: async (
+    teammateId: string,
+    kind: FeedbackKind,
+    text: string,
+    observationDate?: string | null
+  ): Promise<Feedback> => {
+    const { data, error } = await supabase.rpc("add_quick_feedback", {
+      p_teammate_id: teammateId,
+      p_kind: kind,
+      p_text: text,
+      p_observation_date: observationDate ?? null,
+    });
+    const row = unwrap(
+      data as Omit<Feedback, "strengths" | "weaknesses"> | null,
+      error
+    );
+    // RPC returns the feedback row only; quick-add inserts a single child row
+    // synchronously, so synthesize the joined shape for the caller.
+    const strength: FeedbackStrength | null =
+      kind === "strength" ? { id: row.id, text, position: 0 } : null;
+    const weakness: FeedbackWeakness | null =
+      kind === "weakness" ? { id: row.id, text, position: 0 } : null;
+    return {
+      ...row,
+      strengths: strength ? [strength] : [],
+      weaknesses: weakness ? [weakness] : [],
+    };
+  },
+
+  upsertFeedback: async (input: UpsertFeedbackInput): Promise<Feedback> => {
+    const { data, error } = await supabase.rpc("upsert_feedback", {
+      p_id: input.id ?? null,
+      p_teammate_id: input.teammate_id,
+      p_observation_date: input.observation_date,
+      p_synthesis: input.synthesis ?? null,
+      p_specific_coaching: input.specific_coaching ?? null,
+      p_strengths: input.strengths,
+      p_weaknesses: input.weaknesses,
+    });
+    const row = unwrap(
+      data as Omit<Feedback, "strengths" | "weaknesses"> | null,
+      error
+    );
+    // RPC returns the feedback row only; re-read joined children so callers
+    // always get the full object graph back from an upsert.
+    const [strengthsRes, weaknessesRes] = await Promise.all([
+      supabase
+        .from("feedback_strengths")
+        .select("id, text, position")
+        .eq("feedback_id", row.id)
+        .order("position", { ascending: true }),
+      supabase
+        .from("feedback_weaknesses")
+        .select("id, text, position")
+        .eq("feedback_id", row.id)
+        .order("position", { ascending: true }),
+    ]);
+    if (strengthsRes.error) throw new Error(strengthsRes.error.message);
+    if (weaknessesRes.error) throw new Error(weaknessesRes.error.message);
+    return {
+      ...row,
+      strengths: (strengthsRes.data ?? []) as FeedbackStrength[],
+      weaknesses: (weaknessesRes.data ?? []) as FeedbackWeakness[],
+    };
+  },
+
+  deleteFeedback: async (id: string): Promise<void> => {
+    const { error } = await supabase.from("feedback").delete().eq("id", id);
+    if (error) throw new Error(error.message);
   },
 };
 
