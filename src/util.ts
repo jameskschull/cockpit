@@ -1,3 +1,5 @@
+import type { Task } from "./types";
+
 export function todayIso(): string {
   const d = new Date();
   const y = d.getFullYear();
@@ -80,6 +82,61 @@ export function currentWorkWeekMonday(date: Date = new Date()): string {
     return nextMonday(monday);
   }
   return monday;
+}
+
+/** Intake grouping buckets, in display order. */
+export type IntakeBucket = "today" | "week" | "later" | "unscheduled";
+
+const INTAKE_BUCKET_ORDER: IntakeBucket[] = ["today", "week", "later", "unscheduled"];
+
+const INTAKE_BUCKET_LABEL: Record<IntakeBucket, string> = {
+  today: "Today",
+  week: "This Week",
+  later: "Later",
+  unscheduled: "Unscheduled",
+};
+
+/**
+ * Bucket a task's scheduled date relative to the current work week.
+ *
+ * - today: due today or overdue (anything scheduled on or before today)
+ * - week: later this work week (before next Monday)
+ * - later: next Monday onward
+ * - unscheduled: no scheduled date
+ */
+export function intakeBucketFor(scheduledDate: string | null, reference: Date = new Date()): IntakeBucket {
+  if (!scheduledDate) return "unscheduled";
+  const today = isoFromDate(reference);
+  if (scheduledDate <= today) return "today";
+  const nextMon = nextMonday(currentWorkWeekMonday(reference));
+  if (scheduledDate < nextMon) return "week";
+  return "later";
+}
+
+export interface TaskGroup {
+  key: IntakeBucket;
+  label: string;
+  tasks: Task[];
+}
+
+/**
+ * Group incomplete tasks into Today / This Week / Later / Unscheduled sections,
+ * preserving the incoming (priority) order within each section. Empty sections
+ * are omitted.
+ */
+export function groupIntakeTasks(tasks: Task[], reference: Date = new Date()): TaskGroup[] {
+  const buckets = new Map<IntakeBucket, Task[]>();
+  for (const task of tasks) {
+    const key = intakeBucketFor(task.scheduled_date, reference);
+    const list = buckets.get(key);
+    if (list) list.push(task);
+    else buckets.set(key, [task]);
+  }
+  return INTAKE_BUCKET_ORDER.filter((key) => buckets.has(key)).map((key) => ({
+    key,
+    label: INTAKE_BUCKET_LABEL[key],
+    tasks: buckets.get(key)!,
+  }));
 }
 
 /** "Apr 27 – May 3, 2026" given the Monday's ISO date. */

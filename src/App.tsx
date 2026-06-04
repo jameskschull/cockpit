@@ -12,7 +12,7 @@ import type { Session } from "@supabase/supabase-js";
 import type { Priority, Task, ViewName } from "./types";
 import { api } from "./api";
 import { supabase } from "./lib/supabase";
-import { currentWorkWeekMonday, localIsoDate, todayIso } from "./util";
+import { currentWorkWeekMonday, groupIntakeTasks, localIsoDate, todayIso } from "./util";
 import { Auth } from "./components/Auth";
 import { Sidebar, TODAY_DROPPABLE_ID } from "./components/Sidebar";
 import { TaskList } from "./components/TaskList";
@@ -105,12 +105,21 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
 
   const today = todayIso();
 
+  // Intake is grouped into Today / This Week / Later / Unscheduled sections.
+  // Tasks move between sections automatically as their scheduled_date changes.
+  const intakeGroups = useMemo(
+    () => (view === "intake" ? groupIntakeTasks(incomplete) : null),
+    [view, incomplete]
+  );
+
   const visibleTasks = useMemo(() => {
-    if (view === "intake") return incomplete;
+    if (view === "intake") {
+      return intakeGroups ? intakeGroups.flatMap((g) => g.tasks) : incomplete;
+    }
     if (view === "today") return incomplete.filter((t) => t.scheduled_date === today);
     if (view === "completed") return completed;
     return [];
-  }, [view, incomplete, completed, today]);
+  }, [view, intakeGroups, incomplete, completed, today]);
 
   useEffect(() => {
     if (selectedId && !visibleTasks.some((t) => t.id === selectedId)) {
@@ -543,6 +552,7 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
               <TaskList
                 view={view}
                 tasks={visibleTasks}
+                groups={intakeGroups}
                 selectedId={selectedId}
                 completingIds={completingIds}
                 onSelect={setSelectedId}
