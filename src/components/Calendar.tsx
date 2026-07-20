@@ -110,8 +110,10 @@ export function Calendar({ value, anchor, onPick, onClose }: Props) {
         </button>
       </div>
       <div className="datepicker-weekdays">
-        {WEEKDAYS.map((d) => (
-          <span key={d}>{d}</span>
+        {WEEKDAYS.map((d, i) => (
+          <span key={d} className={classNames(i >= 5 && "datepicker-weekday--weekend")}>
+            {d}
+          </span>
         ))}
       </div>
       <div className="datepicker-grid">
@@ -119,12 +121,14 @@ export function Calendar({ value, anchor, onPick, onClose }: Props) {
           if (!d) return <span key={`b${i}`} className="datepicker-day datepicker-day--blank" />;
           const isToday = d.getTime() === today.getTime();
           const isSelected = valueDate ? d.getTime() === valueDate.getTime() : false;
+          const isWeekend = d.getDay() === 0 || d.getDay() === 6;
           return (
             <button
               key={isoForDate(d)}
               type="button"
               className={classNames(
                 "datepicker-day",
+                isWeekend && "datepicker-day--weekend",
                 isToday && "datepicker-day--today",
                 isSelected && "datepicker-day--selected"
               )}

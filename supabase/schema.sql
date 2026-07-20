@@ -600,3 +600,33 @@ begin
   return v_row;
 end;
 $$;
+
+-- ── commitments ──────────────────────────────────────────────────────────────
+-- "Waiting On": things other people have committed to delivering to you. Status
+-- is derived (open when both received_at and dropped_at are null), mirroring how
+-- tasks derive completion from completed_at.
+
+create table if not exists public.commitments (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  from_name text not null,
+  what text not null,
+  expected_date date,
+  received_at timestamptz,
+  dropped_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists commitments_user_idx
+  on public.commitments (user_id, expected_date);
+
+alter table public.commitments enable row level security;
+
+drop policy if exists commitments_owner on public.commitments;
+create policy commitments_owner on public.commitments
+  for all using (user_id = auth.uid()) with check (user_id = auth.uid());
+
+drop trigger if exists commitments_set_user_id on public.commitments;
+create trigger commitments_set_user_id before insert on public.commitments
+  for each row execute function public.set_user_id();

@@ -139,5 +139,7 @@ function emptyLabel(view: ViewName): string {
       return "Nothing completed yet.";
     case "feedback":
       return "";
+    case "waiting":
+      return "";
   }
 }

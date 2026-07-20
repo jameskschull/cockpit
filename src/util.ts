@@ -1,4 +1,4 @@
-import type { Task } from "./types";
+import type { Commitment, Task } from "./types";
 
 export function todayIso(): string {
   const d = new Date();
@@ -136,6 +136,73 @@ export function groupIntakeTasks(tasks: Task[], reference: Date = new Date()): T
     key,
     label: INTAKE_BUCKET_LABEL[key],
     tasks: buckets.get(key)!,
+  }));
+}
+
+/** Whole days from one ISO date (YYYY-MM-DD) to another. Negative if `to` is earlier. */
+export function daysBetween(fromIso: string, toIso: string): number {
+  const from = dateFromIso(fromIso);
+  const to = dateFromIso(toIso);
+  return Math.round((to.getTime() - from.getTime()) / 86_400_000);
+}
+
+/** "Waiting On" grouping buckets, in display order. */
+export type WaitingBucket = "overdue" | "week" | "later" | "whenever";
+
+const WAITING_BUCKET_ORDER: WaitingBucket[] = ["overdue", "week", "later", "whenever"];
+
+const WAITING_BUCKET_LABEL: Record<WaitingBucket, string> = {
+  overdue: "Overdue",
+  week: "This Week",
+  later: "Later",
+  whenever: "Whenever",
+};
+
+/**
+ * Bucket a commitment's expected date relative to the current work week.
+ *
+ * - overdue: past due and still open — these are what you follow up on
+ * - week: due today through the end of this work week (before next Monday)
+ * - later: next Monday onward
+ * - whenever: no expected date
+ */
+export function waitingBucketFor(
+  expectedDate: string | null,
+  reference: Date = new Date()
+): WaitingBucket {
+  if (!expectedDate) return "whenever";
+  const today = isoFromDate(reference);
+  if (expectedDate < today) return "overdue";
+  const nextMon = nextMonday(currentWorkWeekMonday(reference));
+  if (expectedDate < nextMon) return "week";
+  return "later";
+}
+
+export interface CommitmentGroup {
+  key: WaitingBucket;
+  label: string;
+  commitments: Commitment[];
+}
+
+/**
+ * Group open commitments into Overdue / This Week / Later / Whenever sections,
+ * preserving the incoming order within each section. Empty sections are omitted.
+ */
+export function groupCommitments(
+  commitments: Commitment[],
+  reference: Date = new Date()
+): CommitmentGroup[] {
+  const buckets = new Map<WaitingBucket, Commitment[]>();
+  for (const c of commitments) {
+    const key = waitingBucketFor(c.expected_date, reference);
+    const list = buckets.get(key);
+    if (list) list.push(c);
+    else buckets.set(key, [c]);
+  }
+  return WAITING_BUCKET_ORDER.filter((key) => buckets.has(key)).map((key) => ({
+    key,
+    label: WAITING_BUCKET_LABEL[key],
+    commitments: buckets.get(key)!,
   }));
 }
 

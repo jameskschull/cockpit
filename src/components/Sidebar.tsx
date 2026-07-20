@@ -21,7 +21,8 @@ const TASK_ITEMS: NavItem[] = [
   { view: "today", label: "Today", hotkey: "3" },
   { view: "completed", label: "Completed", hotkey: "4" },
 ];
-const FEEDBACK: NavItem = { view: "feedback", label: "Feedback", hotkey: "5" };
+const WAITING: NavItem = { view: "waiting", label: "Waiting on", hotkey: "5" };
+const FEEDBACK: NavItem = { view: "feedback", label: "Feedback", hotkey: "6" };
 
 export const TODAY_DROPPABLE_ID = "drop-today";
 
@@ -39,6 +40,7 @@ export function Sidebar({ current, counts, onChange, onSignOut }: Props) {
         />
       );
     }
+    const alertCount = item.view === "waiting" ? counts.waiting : 0;
     return (
       <button
         key={item.view}
@@ -52,7 +54,16 @@ export function Sidebar({ current, counts, onChange, onSignOut }: Props) {
         onClick={() => onChange(item.view)}
       >
         <span className="sidebar-item-label">{item.label}</span>
-        <span className="sidebar-item-count" aria-hidden />
+        {alertCount > 0 ? (
+          <span
+            className="sidebar-item-count sidebar-item-count--alert"
+            title={`${alertCount} overdue`}
+          >
+            {alertCount}
+          </span>
+        ) : (
+          <span className="sidebar-item-count" aria-hidden />
+        )}
         <span className="sidebar-item-hotkey">{item.hotkey}</span>
       </button>
     );
@@ -65,7 +76,8 @@ export function Sidebar({ current, counts, onChange, onSignOut }: Props) {
         {renderItem(PRIORITIES, false, false)}
         <div className="sidebar-group-label">Tasks</div>
         {TASK_ITEMS.map((item) => renderItem(item, true, false))}
-        {renderItem(FEEDBACK, false, true)}
+        {renderItem(WAITING, false, true)}
+        {renderItem(FEEDBACK, false, false)}
       </nav>
       <footer className="sidebar-footer">
         <div className="shortcut-row"><kbd>⌘</kbd><kbd>N</kbd><span>New task</span></div>

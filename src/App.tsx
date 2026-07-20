@@ -12,7 +12,13 @@ import type { Session } from "@supabase/supabase-js";
 import type { Priority, Task, ViewName } from "./types";
 import { api } from "./api";
 import { supabase } from "./lib/supabase";
-import { currentWorkWeekMonday, groupIntakeTasks, localIsoDate, todayIso } from "./util";
+import {
+  currentWorkWeekMonday,
+  groupIntakeTasks,
+  localIsoDate,
+  todayIso,
+  waitingBucketFor,
+} from "./util";
 import { Auth } from "./components/Auth";
 import { Sidebar, TODAY_DROPPABLE_ID } from "./components/Sidebar";
 import { TaskList } from "./components/TaskList";
@@ -22,6 +28,7 @@ import { Priorities } from "./components/Priorities";
 import { PrioritiesBanner } from "./components/PrioritiesBanner";
 import { Calendar } from "./components/Calendar";
 import { FeedbackView } from "./components/FeedbackView";
+import { WaitingView } from "./components/WaitingView";
 
 interface PickerState {
   taskId: string;
@@ -29,7 +36,7 @@ interface PickerState {
   anchor: DOMRect;
 }
 
-const KNOWN_VIEWS: ViewName[] = ["priorities", "intake", "today", "completed", "feedback"];
+const KNOWN_VIEWS: ViewName[] = ["priorities", "intake", "today", "completed", "feedback", "waiting"];
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -67,6 +74,7 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
   const [picker, setPicker] = useState<PickerState | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [loaded, setLoaded] = useState(false);
+  const [waitingOverdue, setWaitingOverdue] = useState(0);
   const [completingIds, setCompletingIds] = useState<Set<string>>(() => new Set());
   const newTaskInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -82,6 +90,13 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
     setPriorities(await api.listPriorities());
   }, []);
 
+  const refreshWaitingOverdue = useCallback(async () => {
+    const list = await api.listCommitments();
+    setWaitingOverdue(
+      list.filter((c) => waitingBucketFor(c.expected_date) === "overdue").length
+    );
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
@@ -93,10 +108,15 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
       } catch {
         // ignore
       }
-      await Promise.all([refreshIncomplete(), refreshCompleted(), refreshPriorities()]);
+      await Promise.all([
+        refreshIncomplete(),
+        refreshCompleted(),
+        refreshPriorities(),
+        refreshWaitingOverdue().catch(() => {}),
+      ]);
       setLoaded(true);
     })();
-  }, [refreshIncomplete, refreshCompleted, refreshPriorities]);
+  }, [refreshIncomplete, refreshCompleted, refreshPriorities, refreshWaitingOverdue]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -342,7 +362,8 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
         if (e.key === "2") { setView("intake"); return; }
         if (e.key === "3") { setView("today"); return; }
         if (e.key === "4") { setView("completed"); return; }
-        if (e.key === "5") { setView("feedback"); return; }
+        if (e.key === "5") { setView("waiting"); return; }
+        if (e.key === "6") { setView("feedback"); return; }
       }
 
       if (!selectedTask) return;
@@ -437,8 +458,9 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
       today: incomplete.filter((t) => t.scheduled_date === today).length,
       completed: completed.length,
       feedback: 0,
+      waiting: waitingOverdue,
     }),
-    [incomplete, completed, priorities, today]
+    [incomplete, completed, priorities, today, waitingOverdue]
   );
 
   const completedTodayCount = useMemo(
@@ -502,19 +524,20 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
 
   const isPriorities = view === "priorities";
   const isFeedback = view === "feedback";
+  const isWaiting = view === "waiting";
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
       <div className={`app${sidebarOpen ? "" : " app--sidebar-hidden"}`}>
         <Sidebar current={view} counts={counts} onChange={setView} onSignOut={onSignOut} />
         <main className="main">
-          {!isPriorities && !isFeedback && showBanner && (
+          {!isPriorities && !isFeedback && !isWaiting && showBanner && (
             <PrioritiesBanner
               priority={currentWeekPriority}
               onOpenPriorities={() => setView("priorities")}
             />
           )}
-          {!isFeedback && (
+          {!isFeedback && !isWaiting && (
             <header className="main-header">
               <div className="main-header-row">
                 <h1>{headingFor(view)}</h1>
@@ -544,6 +567,8 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
             />
           ) : isFeedback ? (
             <FeedbackView />
+          ) : isWaiting ? (
+            <WaitingView onOverdueCountChange={setWaitingOverdue} />
           ) : (
             <>
               {(view === "intake" || view === "today") && (
@@ -608,6 +633,8 @@ function headingFor(v: ViewName): string {
       return "Completed";
     case "feedback":
       return "Feedback";
+    case "waiting":
+      return "Waiting on";
   }
 }
 
@@ -623,5 +650,7 @@ function subtitleFor(v: ViewName): string {
       return "Most recently finished first.";
     case "feedback":
       return "Track developmental feedback for your teammates.";
+    case "waiting":
+      return "Things other people owe you — follow up before they slip.";
   }
 }

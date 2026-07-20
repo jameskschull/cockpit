@@ -741,6 +741,11 @@ kbd {
   padding: 4px 0;
 }
 
+.datepicker-weekday--weekend {
+  color: var(--accent);
+  opacity: 0.75;
+}
+
 .datepicker-grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -764,9 +769,28 @@ kbd {
   visibility: hidden;
 }
 
+/* Weekends: tinted column so the Mon–Fri work week is easy to situate. */
+.datepicker-day--weekend {
+  background: var(--chip-bg);
+  color: var(--text-dim);
+}
+
+.datepicker-day--weekend:hover {
+  background: var(--border);
+}
+
+/* Today: high-contrast filled ring so it reads at a glance (distinct from the
+   solid-accent selected state). */
 .datepicker-day--today {
-  border-color: var(--border-strong);
-  font-weight: 600;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.datepicker-day--today:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
 }
 
 .datepicker-day--selected {
@@ -2051,4 +2075,204 @@ kbd {
   .feedback-column--strength .feedback-column-inline-label {
     color: #7adf9c;
   }
+}
+
+/* ── Waiting On ──────────────────────────────────────────────────────────── */
+
+.waiting-composer {
+  display: flex;
+  padding: 10px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.waiting-composer-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  width: 100%;
+}
+
+.waiting-composer-from {
+  width: 130px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  padding: 4px 10px 4px 0;
+  border-right: 1px solid var(--border);
+}
+
+.waiting-composer-what {
+  flex: 1;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  padding: 4px 0;
+}
+
+.waiting-date-pill {
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.waiting-date-pill:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.waiting-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 0 24px;
+}
+
+.task-group-divider--overdue .task-group-label {
+  color: var(--danger);
+}
+
+.waiting-row {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  transition: border-color 0.08s;
+}
+
+.waiting-row:hover {
+  border-color: var(--border-strong);
+}
+
+.waiting-row--overdue {
+  background: var(--danger-soft);
+}
+
+.waiting-row--closed {
+  opacity: 0.72;
+}
+
+.waiting-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.waiting-what {
+  font-size: 14px;
+}
+
+.waiting-what--closed {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.waiting-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.waiting-from {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.waiting-dot {
+  color: var(--text-muted);
+}
+
+.waiting-late {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+.waiting-tag {
+  color: var(--text-muted);
+}
+
+.waiting-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+/* Date buttons follow the task-row convention: hidden until hover/select when
+   unset, always visible when set. */
+.waiting-date-action {
+  min-width: 92px;
+  text-align: center;
+}
+
+.waiting-date-action[data-state="unset"] {
+  opacity: 0;
+}
+
+.waiting-row:hover .waiting-date-action,
+.waiting-row:hover .task-action {
+  opacity: 1;
+}
+
+.waiting-closed-toggle {
+  align-self: flex-start;
+  margin-top: 12px;
+  padding: 4px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  background: transparent;
+}
+
+.waiting-closed-toggle:hover {
+  color: var(--text);
+}
+
+.sidebar-item-count--alert {
+  background: var(--danger);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0 6px;
+  min-width: 18px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.waiting-error {
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--danger);
+  background: var(--danger-soft);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text);
+}
+
+.waiting-error code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+}
+
+.waiting-error-detail {
+  margin-top: 6px;
+  color: var(--text-dim);
+  font-size: 12px;
 }
