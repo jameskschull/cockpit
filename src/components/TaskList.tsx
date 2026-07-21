@@ -4,12 +4,16 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { Fragment } from "react";
 import type { Task, ViewName } from "../types";
+import type { TaskGroup } from "../util";
 import { TaskRow } from "./TaskRow";
 
 interface Props {
   view: ViewName;
   tasks: Task[];
+  /** When set (Intake view), tasks are rendered under section dividers. */
+  groups?: TaskGroup[] | null;
   selectedId: string | null;
   completingIds?: ReadonlySet<string>;
   onSelect: (id: string) => void;
@@ -23,6 +27,7 @@ interface Props {
 export function TaskList({
   view,
   tasks,
+  groups,
   selectedId,
   completingIds,
   onSelect,
@@ -37,25 +42,37 @@ export function TaskList({
   const canDrag = view === "intake" || view === "today";
   const empty = tasks.length === 0;
 
+  const renderRow = (task: Task) => (
+    <SortableRow
+      key={task.id}
+      task={task}
+      view={view}
+      canDrag={canDrag}
+      selected={task.id === selectedId}
+      isCompleting={completingIds?.has(task.id)}
+      onSelect={() => onSelect(task.id)}
+      onComplete={() => onComplete(task.id)}
+      onUncomplete={() => onUncomplete(task.id)}
+      onDelete={() => onDelete(task.id)}
+      onOpenPicker={(kind, anchor) => onOpenPicker(task.id, kind, anchor)}
+      onEdit={() => onEdit(task.id)}
+    />
+  );
+
   return (
     <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
       <div className="task-list">
-        {tasks.map((task) => (
-          <SortableRow
-            key={task.id}
-            task={task}
-            view={view}
-            canDrag={canDrag}
-            selected={task.id === selectedId}
-            isCompleting={completingIds?.has(task.id)}
-            onSelect={() => onSelect(task.id)}
-            onComplete={() => onComplete(task.id)}
-            onUncomplete={() => onUncomplete(task.id)}
-            onDelete={() => onDelete(task.id)}
-            onOpenPicker={(kind, anchor) => onOpenPicker(task.id, kind, anchor)}
-            onEdit={() => onEdit(task.id)}
-          />
-        ))}
+        {groups
+          ? groups.map((group) => (
+              <Fragment key={group.key}>
+                <div className="task-group-divider" aria-hidden="true">
+                  <span className="task-group-label">{group.label}</span>
+                  <span className="task-group-count">{group.tasks.length}</span>
+                </div>
+                {group.tasks.map(renderRow)}
+              </Fragment>
+            ))
+          : tasks.map(renderRow)}
         {empty && <div className="empty">{emptyLabel(view)}</div>}
       </div>
     </SortableContext>
@@ -121,6 +138,8 @@ function emptyLabel(view: ViewName): string {
     case "completed":
       return "Nothing completed yet.";
     case "feedback":
+      return "";
+    case "waiting":
       return "";
   }
 }

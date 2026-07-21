@@ -15,7 +15,8 @@ export type ViewName =
   | "intake"
   | "today"
   | "completed"
-  | "feedback";
+  | "feedback"
+  | "waiting";
 
 export interface Priority {
   week_start: string;
@@ -76,6 +77,24 @@ export interface Feedback {
 }
 
 export type FeedbackKind = "strength" | "weakness";
+
+/** A commitment someone else has made to you ("waiting on"). */
+export interface Commitment {
+  id: string;
+  from_name: string;
+  what: string;
+  expected_date: string | null; // YYYY-MM-DD
+  received_at: string | null; // closed: they delivered
+  dropped_at: string | null; // closed: never came / no longer needed
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NewCommitmentInput {
+  from_name: string;
+  what: string;
+  expected_date?: string | null;
+}
 
 export interface UpsertFeedbackInput {
   id?: string | null;

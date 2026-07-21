@@ -1,10 +1,12 @@
 import { supabase } from "./lib/supabase";
 import type {
   AppSettings,
+  Commitment,
   Feedback,
   FeedbackKind,
   FeedbackStrength,
   FeedbackWeakness,
+  NewCommitmentInput,
   NewTaskInput,
   Priority,
   Task,
@@ -289,7 +291,71 @@ export const api = {
     const { error } = await supabase.from("feedback").delete().eq("id", id);
     if (error) throw new Error(error.message);
   },
+
+  // ── Waiting On: commitments others have made to you ────────────────────────
+
+  listCommitments: async (): Promise<Commitment[]> => {
+    const { data, error } = await supabase
+      .from("commitments")
+      .select("*")
+      .is("received_at", null)
+      .is("dropped_at", null)
+      .order("expected_date", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Commitment[];
+  },
+
+  listClosedCommitments: async (): Promise<Commitment[]> => {
+    const { data, error } = await supabase
+      .from("commitments")
+      .select("*")
+      .or("received_at.not.is.null,dropped_at.not.is.null")
+      .order("updated_at", { ascending: false });
+    if (error) throw new Error(error.message);
+    return (data ?? []) as Commitment[];
+  },
+
+  createCommitment: async (input: NewCommitmentInput): Promise<Commitment> => {
+    const from_name = input.from_name.trim();
+    const what = input.what.trim();
+    if (!from_name) throw new Error("who owes you is required");
+    if (!what) throw new Error("what they owe you is required");
+    const { data, error } = await supabase
+      .from("commitments")
+      .insert({ from_name, what, expected_date: input.expected_date ?? null })
+      .select("*")
+      .single();
+    return unwrap(data as Commitment | null, error);
+  },
+
+  receiveCommitment: (id: string) =>
+    patchCommitment(id, { received_at: new Date().toISOString() }),
+
+  reopenCommitment: (id: string) =>
+    patchCommitment(id, { received_at: null }),
+
+  setCommitmentDate: (id: string, expectedDate: string | null) =>
+    patchCommitment(id, { expected_date: expectedDate }),
+
+  deleteCommitment: async (id: string): Promise<void> => {
+    const { error } = await supabase.from("commitments").delete().eq("id", id);
+    if (error) throw new Error(error.message);
+  },
 };
+
+async function patchCommitment(
+  id: string,
+  patch: Record<string, unknown>
+): Promise<Commitment> {
+  const { data, error } = await supabase
+    .from("commitments")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("id", id)
+    .select("*")
+    .single();
+  return unwrap(data as Commitment | null, error);
+}
 
 async function upsertSetting(key: string, value: string) {
   const { error } = await supabase
