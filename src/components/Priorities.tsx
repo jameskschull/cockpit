@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type KeyboardEvent,
+} from "react";
 import type { Priority } from "../types";
 import { classNames, currentWorkWeekMonday, weekRangeLabel } from "../util";
 
@@ -177,6 +184,15 @@ function RichTextEditor({ initial, onSave }: RichTextEditorProps) {
     await onSave(html);
   };
 
+  // Paste as plain text: strip any HTML formatting the clipboard carries so
+  // pasted content adopts the editor's own styling instead of the source's.
+  const onPaste = (e: ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData("text/plain");
+    if (!text) return;
+    document.execCommand("insertText", false, text);
+  };
+
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     const mod = e.metaKey || e.ctrlKey;
     if (!mod) return;
@@ -215,6 +231,7 @@ function RichTextEditor({ initial, onSave }: RichTextEditorProps) {
         suppressContentEditableWarning
         onBlur={onBlur}
         onKeyDown={onKeyDown}
+        onPaste={onPaste}
         data-placeholder="Top priorities for this week…"
       />
     </div>
