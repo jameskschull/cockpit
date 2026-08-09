@@ -166,6 +166,17 @@ export const api = {
     return unwrap(data as Teammate | null, error);
   },
 
+  setTeammateAbout: async (id: string, about: string): Promise<Teammate> => {
+    const trimmed = about.trim();
+    const { data, error } = await supabase
+      .from("teammates")
+      .update({ about: trimmed || null, updated_at: new Date().toISOString() })
+      .eq("id", id)
+      .select("*")
+      .single();
+    return unwrap(data as Teammate | null, error);
+  },
+
   archiveTeammate: async (id: string): Promise<Teammate> => {
     const now = new Date().toISOString();
     const { data, error } = await supabase

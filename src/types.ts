@@ -47,6 +47,8 @@ export interface UpdateTaskInput {
 export interface Teammate {
   id: string;
   name: string;
+  /** Free-text personal details: partner, kids, where they live, interests. */
+  about: string | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;

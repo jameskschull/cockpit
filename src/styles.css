@@ -1631,6 +1631,54 @@ kbd {
 }
 
 /* Composer */
+/* Personal details */
+.personal-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.personal-details-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.personal-details-body {
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  white-space: pre-wrap;
+  cursor: text;
+}
+
+.personal-details-empty {
+  color: var(--text-muted);
+}
+
+.personal-details-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: var(--text);
+  resize: none;
+  overflow: hidden;
+}
+
 .feedback-composer {
   display: flex;
   flex-direction: column;

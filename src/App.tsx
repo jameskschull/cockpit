@@ -632,7 +632,7 @@ function headingFor(v: ViewName): string {
     case "completed":
       return "Completed";
     case "feedback":
-      return "Feedback";
+      return "Team";
     case "waiting":
       return "Waiting on";
   }

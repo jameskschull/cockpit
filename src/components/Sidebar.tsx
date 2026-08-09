@@ -22,7 +22,7 @@ const TASK_ITEMS: NavItem[] = [
   { view: "completed", label: "Completed", hotkey: "4" },
 ];
 const WAITING: NavItem = { view: "waiting", label: "Waiting on", hotkey: "5" };
-const FEEDBACK: NavItem = { view: "feedback", label: "Feedback", hotkey: "6" };
+const FEEDBACK: NavItem = { view: "feedback", label: "Team", hotkey: "6" };
 
 export const TODAY_DROPPABLE_ID = "drop-today";
 

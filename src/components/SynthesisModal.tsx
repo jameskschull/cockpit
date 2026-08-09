@@ -134,12 +134,12 @@ export function SynthesisModal({
           </label>
 
           <label className="editor-field">
-            <span>Specific coaching</span>
+            <span>Developmental Coaching / Ask</span>
             <textarea
               value={coaching}
               onChange={(e) => setCoaching(e.target.value)}
               rows={3}
-              placeholder="What you'll focus on next."
+              placeholder="What you'll focus on next — and what they've asked you for."
             />
           </label>
 

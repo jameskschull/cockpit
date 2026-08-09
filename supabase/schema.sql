@@ -362,10 +362,15 @@ create table if not exists public.teammates (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   name text not null,
+  about text,
   archived_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- `create table if not exists` above is a no-op on databases created before
+-- `about` existed, so add the column explicitly for those.
+alter table public.teammates add column if not exists about text;
 
 create index if not exists teammates_user_idx
   on public.teammates (user_id, archived_at);
