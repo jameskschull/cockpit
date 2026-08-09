@@ -53,7 +53,7 @@ export function FeedbackView() {
     <>
       <header className="main-header">
         <div className="main-header-row">
-          <h1>Feedback</h1>
+          <h1>Team</h1>
         </div>
         <p className="subtitle">Track developmental feedback for your teammates.</p>
       </header>

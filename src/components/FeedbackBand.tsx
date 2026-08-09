@@ -9,7 +9,7 @@ interface Props {
 const KIND_LABEL: Record<"strength" | "weakness" | "coaching", string> = {
   strength: "Strengths",
   weakness: "Weaknesses",
-  coaching: "Coaching",
+  coaching: "Developmental Coaching / Ask",
 };
 
 export function FeedbackBand({ feedback, onOpen }: Props) {

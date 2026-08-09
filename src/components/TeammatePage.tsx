@@ -3,6 +3,7 @@ import type { Feedback, FeedbackKind, Teammate, UpsertFeedbackInput } from "../t
 import { api } from "../api";
 import { FeedbackBand } from "./FeedbackBand";
 import { FeedbackComposer, type FeedbackComposerHandle } from "./FeedbackComposer";
+import { PersonalDetails } from "./PersonalDetails";
 import { SynthesisModal } from "./SynthesisModal";
 
 interface Props {
@@ -60,6 +61,14 @@ export function TeammatePage({
     await api.renameTeammate(teammate.id, next);
     await onTeammateChanged();
   }, [nameDraft, teammate.id, teammate.name, onTeammateChanged]);
+
+  const saveAbout = useCallback(
+    async (about: string) => {
+      await api.setTeammateAbout(teammate.id, about);
+      await onTeammateChanged();
+    },
+    [teammate.id, onTeammateChanged]
+  );
 
   const cancelName = useCallback(() => {
     setNameDraft(teammate.name);
@@ -279,6 +288,8 @@ export function TeammatePage({
         </div>
       </header>
 
+      <PersonalDetails about={teammate.about} onSave={saveAbout} />
+
       <FeedbackComposer ref={composerRef} onSubmit={handleQuickAdd} />
 
       {feedback.length > 0 && (
@@ -290,7 +301,7 @@ export function TeammatePage({
             Weaknesses
           </div>
           <div className="feedback-grid-header-cell feedback-grid-header-cell--coaching">
-            Coaching
+            Developmental Coaching / Ask
           </div>
         </div>
       )}
