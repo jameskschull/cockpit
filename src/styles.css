@@ -1138,6 +1138,7 @@ kbd {
 .priority-card-editor {
   width: 100%;
   min-height: 120px;
+  max-height: 420px;
   padding: 12px 14px;
   outline: none;
   background: transparent;
@@ -1146,6 +1147,8 @@ kbd {
   line-height: 1.5;
   color: var(--text);
   white-space: pre-wrap;
+  overflow-y: auto;
+  resize: vertical;
 }
 
 .priority-card-editor:empty::before {
