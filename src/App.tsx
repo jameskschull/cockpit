@@ -29,6 +29,7 @@ import { PrioritiesBanner } from "./components/PrioritiesBanner";
 import { Calendar } from "./components/Calendar";
 import { FeedbackView } from "./components/FeedbackView";
 import { WaitingView } from "./components/WaitingView";
+import { WaitingTodaySection } from "./components/WaitingTodaySection";
 
 interface PickerState {
   taskId: string;
@@ -586,6 +587,11 @@ function Cockpit({ onSignOut }: { onSignOut: () => void }) {
                 onDelete={handleDelete}
                 onOpenPicker={handleOpenPicker}
                 onEdit={setEditingId}
+                footer={
+                  view === "today" ? (
+                    <WaitingTodaySection onOverdueCountChange={setWaitingOverdue} />
+                  ) : undefined
+                }
               />
             </>
           )}

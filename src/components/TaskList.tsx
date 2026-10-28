@@ -4,7 +4,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { Task, ViewName } from "../types";
 import type { TaskGroup } from "../util";
 import { TaskRow } from "./TaskRow";
@@ -22,6 +22,8 @@ interface Props {
   onDelete: (id: string) => void;
   onOpenPicker: (id: string, kind: "schedule" | "deadline", anchor: HTMLElement) => void;
   onEdit: (id: string) => void;
+  /** Rendered after the tasks, inside the scrolling list (e.g. Today's "owed to you"). */
+  footer?: ReactNode;
 }
 
 export function TaskList({
@@ -36,6 +38,7 @@ export function TaskList({
   onDelete,
   onOpenPicker,
   onEdit,
+  footer,
 }: Props) {
   // Drag is enabled wherever a row can be dropped on Today; reorder is enforced
   // by the App-level drag-end handler.
@@ -74,6 +77,7 @@ export function TaskList({
             ))
           : tasks.map(renderRow)}
         {empty && <div className="empty">{emptyLabel(view)}</div>}
+        {footer}
       </div>
     </SortableContext>
   );
