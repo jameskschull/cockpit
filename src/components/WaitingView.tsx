@@ -209,18 +209,21 @@ export function WaitingView({ onOverdueCountChange }: Props) {
   );
 }
 
-function CommitmentRow({
+export function CommitmentRow({
   commitment,
   today,
   onReceive,
   onDelete,
   onOpenPicker,
+  compact = false,
 }: {
   commitment: Commitment;
   today: string;
   onReceive: () => void;
   onDelete: () => void;
-  onOpenPicker: (anchor: HTMLElement) => void;
+  onOpenPicker?: (anchor: HTMLElement) => void;
+  /** Today view: the section heading implies the date, so skip the date pill and "added today". */
+  compact?: boolean;
 }) {
   const c = commitment;
   const overdue = !!c.expected_date && c.expected_date < today;
@@ -239,8 +242,12 @@ function CommitmentRow({
         <div className="waiting-what">{c.what}</div>
         <div className="waiting-meta">
           <span className="waiting-from">{c.from_name}</span>
-          <span className="waiting-dot">·</span>
-          <span>{waited <= 0 ? "added today" : `${waited}d waiting`}</span>
+          {!(compact && waited <= 0) && (
+            <>
+              <span className="waiting-dot">·</span>
+              <span>{waited <= 0 ? "added today" : `${waited}d waiting`}</span>
+            </>
+          )}
           {overdue && (
             <>
               <span className="waiting-dot">·</span>
@@ -250,20 +257,22 @@ function CommitmentRow({
         </div>
       </div>
       <div className="waiting-actions">
-        <button
-          type="button"
-          className={classNames(
-            "task-action",
-            "waiting-date-action",
-            c.expected_date && "task-action--set",
-            overdue && "task-action--overdue"
-          )}
-          data-state={c.expected_date ? "set" : "unset"}
-          title="Expected by"
-          onClick={(e) => onOpenPicker(e.currentTarget)}
-        >
-          {dateLabel}
-        </button>
+        {!compact && (
+          <button
+            type="button"
+            className={classNames(
+              "task-action",
+              "waiting-date-action",
+              c.expected_date && "task-action--set",
+              overdue && "task-action--overdue"
+            )}
+            data-state={c.expected_date ? "set" : "unset"}
+            title="Expected by"
+            onClick={(e) => onOpenPicker?.(e.currentTarget)}
+          >
+            {dateLabel}
+          </button>
+        )}
         <button type="button" className="task-action task-action--danger" title="Delete" onClick={onDelete}>
           ✕
         </button>

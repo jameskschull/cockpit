@@ -206,6 +206,47 @@ export function groupCommitments(
   }));
 }
 
+/** Buckets for the "owed to you" section shown under the Today view. */
+export type OwedBucket = "today" | "week";
+
+export interface OwedGroup {
+  key: OwedBucket;
+  label: string;
+  commitments: Commitment[];
+}
+
+/**
+ * Pick out the open commitments worth surfacing on Today, preserving the
+ * incoming order. Empty sections are omitted.
+ *
+ * - today: expected today or overdue (late items stay visible until closed)
+ * - week: expected later this work week (before next Monday)
+ *
+ * Commitments with no date or due next week onward are left to Waiting On.
+ */
+export function groupOwedForToday(
+  commitments: Commitment[],
+  reference: Date = new Date()
+): OwedGroup[] {
+  const today = isoFromDate(reference);
+  const nextMon = nextMonday(currentWorkWeekMonday(reference));
+  const dueToday: Commitment[] = [];
+  const dueThisWeek: Commitment[] = [];
+  for (const c of commitments) {
+    if (!c.expected_date) continue;
+    if (c.expected_date <= today) dueToday.push(c);
+    else if (c.expected_date < nextMon) dueThisWeek.push(c);
+  }
+  const groups: OwedGroup[] = [];
+  if (dueToday.length > 0) {
+    groups.push({ key: "today", label: "Today", commitments: dueToday });
+  }
+  if (dueThisWeek.length > 0) {
+    groups.push({ key: "week", label: "This Week", commitments: dueThisWeek });
+  }
+  return groups;
+}
+
 /** "Apr 27 – May 3, 2026" given the Monday's ISO date. */
 export function weekRangeLabel(mondayIso: string): string {
   const start = dateFromIso(mondayIso);
